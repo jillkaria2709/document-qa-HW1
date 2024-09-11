@@ -33,7 +33,7 @@ def read_url_content(url):
 
 # Sidebar options for LLM and language selection
 st.sidebar.header("LLM and Language Settings")
-llm_option = st.sidebar.selectbox("Choose LLM", ["OpenAI", "Claude", "Cohere", "Gemini", "Mistral"])
+llm_option = st.sidebar.selectbox("Choose LLM", ["OpenAI", "TogetherAi", "Gemini"])
 language = st.sidebar.selectbox("Select Output Language", ["English", "French", "Spanish"])
 use_advanced_model = st.sidebar.checkbox("Use advanced model")
 
