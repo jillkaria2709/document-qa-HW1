@@ -119,12 +119,13 @@ if document:
                 )
                 st.write(f"**Response from Groq:**\n{chat_completion.choices[0].message.content}")
                 success = True  # Exit loop when successful
-            except groq.RateLimitError as e:
-                retry_after_seconds = 60  # Default retry time
-                if "Retry-After" in e.response.headers:
-                    retry_after_seconds = int(e.response.headers["Retry-After"])
-                st.warning(f"Rate limit exceeded. Retrying in {retry_after_seconds} seconds.")
-                time.sleep(retry_after_seconds)
-
+            except Exception as e:  # Catching general exception
+                st.error(f"An error occurred: {e}")
+                if "rate_limit" in str(e).lower():
+                    retry_after_seconds = 60  # Default retry time
+                    st.warning(f"Rate limit exceeded. Retrying in {retry_after_seconds} seconds.")
+                    time.sleep(retry_after_seconds)
+                else:
+                    break  # Exit if other errors occur
 else:
     st.write("Please upload a document or enter a URL to summarize.")
