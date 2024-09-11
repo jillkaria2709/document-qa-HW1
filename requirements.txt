@@ -3,4 +3,4 @@ openai
 pymupdf
 beautifulsoup4
 google-generativeai
-Grok
+Groq
