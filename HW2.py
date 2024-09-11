@@ -94,7 +94,7 @@ if document:
         st.write_stream(stream)
 
     elif model_provider == "Gemini":
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         gemini_response = model.generate_content(f"Here's a document: {document} \n\n---\n\n {instruction}")
         st.write(f"**Response from Gemini:**\n{gemini_response.text}")
 
