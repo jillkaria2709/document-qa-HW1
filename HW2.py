@@ -1,12 +1,14 @@
+import os
 import streamlit as st
 from openai import OpenAI
 import google.generativeai as genai
 import requests
+from groq import Groq  # Importing Groq API
 
 # Show title and description
 st.title("📄 Document Summarizer")
 st.write(
-    "Upload a document or provide a URL and choose how you want it summarized – GPT or Gemini will generate a summary! "
+    "Upload a document or provide a URL and choose how you want it summarized – GPT, Gemini, or Groq will generate a summary! "
     "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
 )
 
@@ -15,6 +17,9 @@ openai_client = OpenAI(api_key=st.secrets["openai_key"])
 
 # Gemini API configuration
 genai.configure(api_key=st.secrets["gemini_api_key"])
+
+# Groq API configuration
+grok_client = Groq(api_key=st.secrets["grok_api_key"])
 
 # Sidebar options for input method
 input_method = st.sidebar.radio("Select input method:", ("Upload a document", "Enter a URL"))
@@ -35,8 +40,8 @@ language = st.sidebar.selectbox(
 # Checkbox for advanced model usage
 use_advanced_model = st.sidebar.checkbox("Use Advanced OpenAI Model")
 
-# Model selection between OpenAI and Gemini
-model_provider = st.sidebar.radio("Select AI Model Provider:", ("OpenAI", "Gemini"))
+# Model selection between OpenAI, Gemini, and Groq
+model_provider = st.sidebar.radio("Select AI Model Provider:", ("OpenAI", "Gemini", "Groq"))
 
 # Function to fetch content from a URL
 def fetch_content_from_url(url):
@@ -75,7 +80,7 @@ if document:
     else:
         instruction = f"Summarize the document in 5 bullet points in {language}."
 
-    # Using OpenAI or Gemini based on user choice
+    # Using OpenAI, Gemini, or Groq based on user choice
     if model_provider == "OpenAI":
         model = "gpt-4o" if use_advanced_model else "gpt-4o-mini"
         messages = [
@@ -97,6 +102,18 @@ if document:
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
         gemini_response = model.generate_content(f"Here's a document: {document} \n\n---\n\n {instruction}")
         st.write(f"**Response from Gemini:**\n{gemini_response.text}")
+
+    elif model_provider == "Groq":
+        chat_completion = grok_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Here's a document: {document} \n\n---\n\n {instruction}"
+                }
+            ],
+            model="llama3-8b-8192"
+        )
+        st.write(f"**Response from Groq:**\n{chat_completion.choices[0].message.content}")
 
 else:
     st.write("Please upload a document or enter a URL to summarize.")
