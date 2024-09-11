@@ -29,7 +29,7 @@ input_method = st.sidebar.radio("Select input method:", ("Upload a document", "E
 st.sidebar.title("Summary Options")
 summary_type = st.sidebar.radio(
     "Select summary type:",
-    ("100-word summary", "2 connecting paragraphs", "5 bullet points")
+    ("100-word summary", "2 paragraphs", "5 bullet points")
 )
 
 # Language selection dropdown
@@ -99,7 +99,7 @@ elif input_method == "Enter a URL":
 if document:
     if summary_type == "100-word summary":
         instruction = f"Summarize the document in 100 words in {language}."
-    elif summary_type == "2 connecting paragraphs":
+    elif summary_type == "2 paragraphs":
         instruction = f"Summarize the document in 2 paragraphs in {language}."
     else:
         instruction = f"Summarize the document in 5 bullet points in {language}."
