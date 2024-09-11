@@ -9,7 +9,7 @@ import time
 # Show title and description
 st.title("📄 Document Summarizer")
 st.write(
-    "Upload a document or provide a URL and choose how you want it summarized – GPT, Gemini, or Groq will generate a summary! "
+    "Upload a document or provide a URL and choose how you want it summarized – GPT, Gemini, Groq, or OpenRouter will generate a summary! "
     "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
 )
 
@@ -41,8 +41,8 @@ language = st.sidebar.selectbox(
 # Checkbox for advanced model usage
 use_advanced_model = st.sidebar.checkbox("Use Advanced OpenAI Model")
 
-# Model selection between OpenAI, Gemini, and Groq
-model_provider = st.sidebar.radio("Select AI Model Provider:", ("OpenAI", "Gemini", "Groq"))
+# Model selection between OpenAI, Gemini, Groq, and OpenRouter
+model_provider = st.sidebar.radio("Select AI Model Provider:", ("OpenAI", "Gemini", "Groq", "OpenRouter"))
 
 # Function to fetch content from a URL
 def fetch_content_from_url(url):
@@ -56,6 +56,29 @@ def fetch_content_from_url(url):
     except Exception as e:
         st.error(f"An error occurred: {e}")
         return None
+
+# Function to call OpenRouter API
+def call_openrouter_api(api_key, document, instruction):
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        data = {
+            "model": "mattshumer/reflection-70b:free",  # Example model
+            "messages": [
+                {"role": "user", "content": f"Here's a document: {document} \n\n---\n\n {instruction}"},
+            ],
+        }
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", json=data, headers=headers)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("choices", [{}])[0].get("message", {}).get("content", "No completion found.")
+        else:
+            return f"OpenRouter API error: {response.status_code} - {response.text}"
+    except Exception as e:
+        return f"Error calling OpenRouter API: {e}"
 
 # Variable to hold the document content
 document = None
@@ -81,7 +104,7 @@ if document:
     else:
         instruction = f"Summarize the document in 5 bullet points in {language}."
 
-    # Using OpenAI, Gemini, or Groq based on user choice
+    # Using OpenAI, Gemini, Groq, or OpenRouter based on user choice
     if model_provider == "OpenAI":
         model = "gpt-4o" if use_advanced_model else "gpt-4o-mini"
         messages = [
@@ -127,5 +150,11 @@ if document:
                     time.sleep(retry_after_seconds)
                 else:
                     break  # Exit if other errors occur
+
+    elif model_provider == "OpenRouter":
+        api_key = st.secrets["openrouter_api_key"]
+        openrouter_response = call_openrouter_api(api_key, document, instruction)
+        st.write(f"**Response from OpenRouter:**\n{openrouter_response}")
+
 else:
     st.write("Please upload a document or enter a URL to summarize.")
