@@ -1,17 +1,15 @@
 import streamlit as st
+import requests
+from bs4 import BeautifulSoup
 from openai import OpenAI, OpenAIError
 import fitz  # PyMuPDF for reading PDF files
-import io
 
-# Show title and description.
-st.title("📄 Question the PDF")
+# Show title and description
+st.title("📄 Question the Document or URL")
 st.write(
-    "Upload a document below and ask a question about it – GPT will answer! "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys)."
+    "Upload a document or enter a URL below, and ask a question – GPT or other LLMs will answer! "
+    "To use this app, API keys for different LLMs are fetched from secrets."
 )
-
-# Fetch the OpenAI API key from Streamlit secrets (if available)
-openai_api_key = st.secrets.get("openai", {}).get("api_key", None)
 
 # Function to read PDF files using PyMuPDF
 def read_pdf(file):
@@ -22,65 +20,99 @@ def read_pdf(file):
         text += page.get_text()
     return text
 
-# Check if the API key is available
-if openai_api_key:
+# Function to read content from a URL
+def read_url_content(url):
     try:
-        # Attempt to create an OpenAI client to validate the API key.
-        client = OpenAI(api_key=openai_api_key)
-        
-        # Optionally, make a simple API call to verify the key
-        client.models.list()  # This call checks if the API key is valid
-        
-        # Proceed with the rest of the app if the API key is valid
-        st.write("API key is valid! You can now upload a document and ask questions.")
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        soup = BeautifulSoup(response.content, 'html.parser')
+        return soup.get_text()
+    except requests.RequestException as e:
+        st.error(f"Error reading {url}: {e}")
+        return None
 
-        # Let the user upload a file via `st.file_uploader`.
-        uploaded_file = st.file_uploader(
-            "Upload a document (.pdf or .txt)", type=("pdf", "txt")
-        )
+# Sidebar options for LLM and language selection
+st.sidebar.header("LLM and Language Settings")
+llm_option = st.sidebar.selectbox("Choose LLM", ["OpenAI", "Claude", "Cohere", "Gemini", "Mistral"])
+language = st.sidebar.selectbox("Select Output Language", ["English", "French", "Spanish"])
+use_advanced_model = st.sidebar.checkbox("Use advanced model")
 
-        if uploaded_file:
-            # Handle .txt or .pdf files
-            file_extension = uploaded_file.name.split('.')[-1]
-            
-            if file_extension == 'txt':
-                document = uploaded_file.read().decode()
-            elif file_extension == 'pdf':
-                document = read_pdf(uploaded_file)
-            else:
-                st.error("Unsupported file type.")
-                document = None
-        else:
-            document = None  # Reset if the file is removed
+# Retrieve API keys from Streamlit secrets
+llm_api_keys = {
+    "OpenAI": st.secrets["openai"]["api_key"],
+    "Claude": st.secrets["claude"]["api_key"],
+    "Cohere": st.secrets["cohere"]["api_key"],
+    "Gemini": st.secrets["gemini"]["api_key"],
+    "Mistral": st.secrets["mistral"]["api_key"],
+}
 
-        # Ask the user for a question via `st.text_area`.
-        question = st.text_area(
-            "Now ask a question about the document!",
-            placeholder="Can you give me a short summary?",
-            disabled=not document,
-        )
+# Main content for document or URL input
+st.write("You can either upload a document or enter a URL.")
+url = st.text_input("Enter a URL:")
 
-        if document and question:
-            # Process the uploaded file and question.
-            messages = [
-                {
-                    "role": "user",
-                    "content": f"Here's a document: {document} \n\n---\n\n {question}",
-                }
-            ]
+uploaded_file = st.file_uploader("Or upload a document (.pdf or .txt)", type=("pdf", "txt"))
 
-            # Generate an answer using the OpenAI API.
-            stream = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                stream=True,
-            )
-
-            # Stream the response to the app using `st.write_stream`.
-            st.write_stream(stream)
-
-    except OpenAIError as e:
-        st.error(f"OpenAI API error: {e}")
+if url:
+    document = read_url_content(url)
+elif uploaded_file:
+    file_extension = uploaded_file.name.split('.')[-1]
+    
+    if file_extension == 'txt':
+        document = uploaded_file.read().decode()
+    elif file_extension == 'pdf':
+        document = read_pdf(uploaded_file)
+    else:
+        st.error("Unsupported file type.")
+        document = None
 else:
-    st.error("No API key found. Please ensure you have set up the API key in Streamlit Cloud secrets.")
-    st.warning("If you're running locally, the API key needs to be set in the `.streamlit/secrets.toml` file.")
+    document = None  # Reset if both file and URL are empty
+
+# Ask the user for a question via `st.text_area`.
+question = st.text_area(
+    "Now ask a question about the document or URL!",
+    placeholder="Can you give me a short summary?",
+    disabled=not document,
+)
+
+# Check if the document and question are provided
+if document and question:
+    api_key = llm_api_keys.get(llm_option)  # Get the correct API key for the selected LLM
+
+    if api_key:
+        try:
+            # LLM-specific API integration
+            if llm_option == "OpenAI":
+                client = OpenAI(api_key=api_key)
+                model = "gpt-4o-mini" if use_advanced_model else "gpt-3.5-turbo"
+
+                messages = [
+                    {"role": "user", "content": f"Here's a document: {document} \n\n---\n\n {question}"}
+                ]
+
+                # Generate an answer using OpenAI
+                response = client.chat.completions.create(model=model, messages=messages)
+                st.write(response.choices[0].message["content"])
+
+            elif llm_option == "Claude":
+                # Integrate Claude API logic here using the retrieved api_key
+                pass
+
+            elif llm_option == "Cohere":
+                # Integrate Cohere API logic here using the retrieved api_key
+                pass
+
+            elif llm_option == "Gemini":
+                # Integrate Gemini API logic here using the retrieved api_key
+                pass
+
+            elif llm_option == "Mistral":
+                # Integrate Mistral API logic here using the retrieved api_key
+                pass
+
+        except OpenAIError as e:
+            st.error(f"OpenAI API error: {e}")
+    else:
+        st.warning(f"API key for {llm_option} is missing. Please check your secrets.toml configuration.")
+else:
+    if not question:
+        st.warning("Please enter a question.")
