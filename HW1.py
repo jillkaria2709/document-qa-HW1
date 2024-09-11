@@ -1,15 +1,17 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
 from openai import OpenAI, OpenAIError
 import fitz  # PyMuPDF for reading PDF files
+import io
 
-# Show title and description
-st.title("📄 Question the Document or URL")
+# Show title and description.
+st.title("📄 Question the PDF")
 st.write(
-    "Upload a document or enter a URL below, and ask a question – GPT or other LLMs will answer! "
-    "API keys for different LLMs are fetched from secrets."
+    "Upload a document below and ask a question about it – GPT will answer! "
+    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
 )
+
+# Ask user for their OpenAI API key via `st.text_input`.
+openai_api_key = st.text_input("OpenAI API Key", type="password")
 
 # Function to read PDF files using PyMuPDF
 def read_pdf(file):
@@ -20,132 +22,66 @@ def read_pdf(file):
         text += page.get_text()
     return text
 
-# Function to read content from a URL
-def read_url_content(url):
+# Check if the API key has been entered
+if openai_api_key:
     try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for HTTP errors
-        soup = BeautifulSoup(response.content, 'html.parser')
-        return soup.get_text()
-    except requests.RequestException as e:
-        st.error(f"Error reading {url}: {e}")
-        return None
+        # Attempt to create an OpenAI client to validate the API key.
+        client = OpenAI(api_key=openai_api_key)
+        
+        # Optionally, make a simple API call to verify the key
+        client.models.list()  # This call checks if the API key is valid
+        
+        # Proceed with the rest of the app if the API key is valid
+        st.write("API key is valid! You can now upload a document and ask questions.")
 
-# Function to call OpenAI API
-def call_openai_api(api_key, document, question):
-    try:
-        client = OpenAI(api_key=api_key)
-        messages = [
-            {
-                "role": "user",
-                "content": f"Here's a document: {document} \n\n---\n\n {question}",
-            }
-        ]
-        # Generate an answer using the OpenAI API.
-        response = client.chat_completions.create(
-            model="gpt-4o-mini",  # or "gpt-4" depending on your use case
-            messages=messages,
-            stream=True,
+        # Let the user upload a file via `st.file_uploader`.
+        uploaded_file = st.file_uploader(
+            "Upload a document (.pdf or .txt)", type=("pdf", "txt")
         )
-        return response  # Return the stream to be processed
+
+        if uploaded_file:
+            # Handle .txt or .pdf files
+            file_extension = uploaded_file.name.split('.')[-1]
+            
+            if file_extension == 'txt':
+                document = uploaded_file.read().decode()
+            elif file_extension == 'pdf':
+                document = read_pdf(uploaded_file)
+            else:
+                st.error("Unsupported file type.")
+                document = None
+        else:
+            document = None  # Reset if the file is removed
+
+        # Ask the user for a question via `st.text_area`.
+        question = st.text_area(
+            "Now ask a question about the document!",
+            placeholder="Can you give me a short summary?",
+            disabled=not document,
+        )
+
+        if document and question:
+            # Process the uploaded file and question.
+            messages = [
+                {
+                    "role": "user",
+                    "content": f"Here's a document: {document} \n\n---\n\n {question}",
+                }
+            ]
+
+            # Generate an answer using the OpenAI API.
+            stream = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                stream=True,
+            )
+
+            # Stream the response to the app using `st.write_stream`.
+            st.write_stream(stream)
+
     except OpenAIError as e:
-        return f"OpenAI API error: {e}"
-
-# Function to call TogetherAI API
-def call_togetherai_api(api_key, document, question):
-    try:
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-        data = {
-            "input": f"{document} \n\n---\n\n {question}",
-            "model": "together-large",  # Adjust this model name as per TogetherAI's available models
-        }
-        response = requests.post("https://api.togetherai.com/v1/completions", json=data, headers=headers)
-        
-        if response.status_code == 200:
-            result = response.json()
-            return result.get("completion", "No completion found in TogetherAI response.")
-        else:
-            return f"TogetherAI API error: {response.status_code} - {response.text}"
-    except Exception as e:
-        return f"Error calling TogetherAI API: {e}"
-
-# Function to call Gemini API
-def call_gemini_api(api_key, document, question):
-    try:
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-        data = {
-            "input": f"{document} \n\n---\n\n {question}",
-            "model": "gemini-xl",  # Adjust model as per Gemini's available models
-        }
-        response = requests.post("https://api.gemini.com/v1/completions", json=data, headers=headers)
-        
-        if response.status_code == 200:
-            result = response.json()
-            return result.get("completion", "No completion found in Gemini response.")
-        else:
-            return f"Gemini API error: {response.status_code} - {response.text}"
-    except Exception as e:
-        return f"Error calling Gemini API: {e}"
-
-# Sidebar options for LLM selection
-st.sidebar.header("LLM Settings")
-llm_option = st.sidebar.selectbox("Choose LLM", ["OpenAI", "TogetherAI", "Gemini"])
-use_advanced_model = st.sidebar.checkbox("Use advanced model")
-
-# Main content for document or URL input
-st.write("You can either upload a document or enter a URL.")
-url = st.text_input("Enter a URL:")
-
-uploaded_file = st.file_uploader("Or upload a document (.pdf or .txt)", type=("pdf", "txt"))
-
-# Read document content from the URL or uploaded file
-if url:
-    document = read_url_content(url)
-elif uploaded_file:
-    file_extension = uploaded_file.name.split('.')[-1]
-    
-    if file_extension == 'txt':
-        document = uploaded_file.read().decode()
-    elif file_extension == 'pdf':
-        document = read_pdf(uploaded_file)
-    else:
-        st.error("Unsupported file type.")
-        document = None
+        st.error(f"Invalid API Key. Please put in one that works")
 else:
-    document = None  # Reset if both file and URL are empty
-
-# Ask the user for a question via `st.text_area`.
-question = st.text_area(
-    "Now ask a question about the document or URL!",
-    placeholder="Can you give me a short summary?",
-    disabled=not document,
-)
-
-# Handle API calls based on the chosen LLM
-if document and question:
-    # Retrieve the appropriate API key from secrets based on the LLM selected
-    api_key = st.secrets.get(llm_option.lower(), {}).get("api_key", None)
-
-    if api_key:
-        if llm_option == "OpenAI":
-            response = call_openai_api(api_key, document, question)
-            st.write_stream(response)  # Stream the OpenAI response
-        elif llm_option == "TogetherAI":
-            response = call_togetherai_api(api_key, document, question)
-            st.write(response)
-        elif llm_option == "Gemini":
-            response = call_gemini_api(api_key, document, question)
-            st.write(response)
-    else:
-        st.warning(f"API key for {llm_option} is missing. Please check your configuration.")
-else:
-    if not question:
-        st.warning("Please enter a question.")
-    if not document:
-        st.warning("Please upload a document or provide a URL to analyze.")
+    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+    # Optionally, you can add placeholders for the file uploader and question input
+    st.write("Please enter a valid API key to access the document upload and question features.")
