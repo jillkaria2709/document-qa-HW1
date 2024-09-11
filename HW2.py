@@ -4,6 +4,7 @@ from openai import OpenAI
 import google.generativeai as genai
 import requests
 from groq import Groq  # Importing Groq API
+import time
 
 # Show title and description
 st.title("📄 Document Summarizer")
@@ -104,16 +105,26 @@ if document:
         st.write(f"**Response from Gemini:**\n{gemini_response.text}")
 
     elif model_provider == "Groq":
-        chat_completion = grok_client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Here's a document: {document} \n\n---\n\n {instruction}"
-                }
-            ],
-            model="llama3-8b-8192"
-        )
-        st.write(f"**Response from Groq:**\n{chat_completion.choices[0].message.content}")
+        success = False
+        while not success:
+            try:
+                chat_completion = grok_client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": f"Here's a document: {document} \n\n---\n\n {instruction}"
+                        }
+                    ],
+                    model="llama3-8b-8192"
+                )
+                st.write(f"**Response from Groq:**\n{chat_completion.choices[0].message.content}")
+                success = True  # Exit loop when successful
+            except groq.RateLimitError as e:
+                retry_after_seconds = 60  # Default retry time
+                if "Retry-After" in e.response.headers:
+                    retry_after_seconds = int(e.response.headers["Retry-After"])
+                st.warning(f"Rate limit exceeded. Retrying in {retry_after_seconds} seconds.")
+                time.sleep(retry_after_seconds)
 
 else:
     st.write("Please upload a document or enter a URL to summarize.")
