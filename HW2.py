@@ -50,6 +50,7 @@ url = st.text_input("Enter a URL:")
 
 uploaded_file = st.file_uploader("Or upload a document (.pdf or .txt)", type=("pdf", "txt"))
 
+# Read document content from the URL or uploaded file
 if url:
     document = read_url_content(url)
 elif uploaded_file:
@@ -72,35 +73,82 @@ question = st.text_area(
     disabled=not document,
 )
 
+# Function to handle OpenAI API call
+def call_openai_api(api_key, document, question, use_advanced_model):
+    try:
+        client = OpenAI(api_key=api_key)
+        model = "gpt-4o-mini" if use_advanced_model else "gpt-3.5-turbo"
+
+        messages = [
+            {"role": "user", "content": f"Here's a document: {document} \n\n---\n\n {question}"}
+        ]
+
+        # Generate an answer using OpenAI
+        response = client.chat.completions.create(model=model, messages=messages)
+
+        if "choices" in response and len(response.choices) > 0 and "message" in response.choices[0]:
+            return response.choices[0].message["content"]
+        else:
+            return "Unexpected response format from OpenAI API."
+    except OpenAIError as e:
+        return f"OpenAI API error: {e}"
+
+# Function to handle TogetherAI API call (mimicking OpenAI behavior)
+def call_togetherai_api(api_key, document, question):
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        data = {
+            "input": f"{document} \n\n---\n\n {question}",
+            "model": "together-large",  # Assuming this is the model you'd use. Adjust as needed.
+        }
+        response = requests.post("https://api.togetherai.com/v1/completions", json=data, headers=headers)
+
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("completion", "No completion found in TogetherAI response.")
+        else:
+            return f"TogetherAI API error: {response.status_code} - {response.text}"
+    except Exception as e:
+        return f"Error calling TogetherAI: {e}"
+
+# Function to handle Gemini API call (mimicking OpenAI behavior)
+def call_gemini_api(api_key, document, question):
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        data = {
+            "input": f"{document} \n\n---\n\n {question}",
+            "model": "gemini-xl",  # Assuming this is the model you'd use. Adjust as needed.
+        }
+        response = requests.post("https://api.gemini.com/v1/completions", json=data, headers=headers)
+
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("completion", "No completion found in Gemini response.")
+        else:
+            return f"Gemini API error: {response.status_code} - {response.text}"
+    except Exception as e:
+        return f"Error calling Gemini: {e}"
+
 # Check if the document and question are provided
 if document and question:
     api_key = llm_api_keys.get(llm_option)  # Get the correct API key for the selected LLM
 
     if api_key:
-        try:
-            # LLM-specific API integration
-            if llm_option == "OpenAI":
-                client = OpenAI(api_key=api_key)
-                model = "gpt-4o-mini" if use_advanced_model else "gpt-3.5-turbo"
-
-                messages = [
-                    {"role": "user", "content": f"Here's a document: {document} \n\n---\n\n {question}"}
-                ]
-
-                # Generate an answer using OpenAI
-                response = client.chat.completions.create(model=model, messages=messages)
-                st.write(response.choices[0].message["content"])
-
-            elif llm_option == "TogetherAI":
-                # Integrate Claude API logic here using the retrieved api_key
-                pass
-
-            elif llm_option == "Gemini":
-                # Integrate Gemini API logic here using the retrieved api_key
-                pass
-
-        except OpenAIError as e:
-            st.error(f"OpenAI API error: {e}")
+        if llm_option == "OpenAI":
+            response = call_openai_api(api_key, document, question, use_advanced_model)
+            st.write(response)
+        elif llm_option == "TogetherAI":
+            response = call_togetherai_api(api_key, document, question)
+            st.write(response)
+        elif llm_option == "Gemini":
+            response = call_gemini_api(api_key, document, question)
+            st.write(response)
     else:
         st.warning(f"API key for {llm_option} is missing. Please check your secrets.toml configuration.")
 else:
