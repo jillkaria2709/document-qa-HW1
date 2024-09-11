@@ -33,7 +33,7 @@ def read_url_content(url):
 
 # Sidebar options for LLM and language selection
 st.sidebar.header("LLM and Language Settings")
-llm_option = st.sidebar.selectbox("Choose LLM", ["OpenAI", "TogetherAi", "Gemini"])
+llm_option = st.sidebar.selectbox("Choose LLM", ["OpenAI", "TogetherAI", "Gemini"])
 language = st.sidebar.selectbox("Select Output Language", ["English", "French", "Spanish"])
 use_advanced_model = st.sidebar.checkbox("Use advanced model")
 
@@ -91,7 +91,7 @@ if document and question:
                 response = client.chat.completions.create(model=model, messages=messages)
                 st.write(response.choices[0].message["content"])
 
-            elif llm_option == "TogetherAi":
+            elif llm_option == "TogetherAI":
                 # Integrate Claude API logic here using the retrieved api_key
                 pass
 
