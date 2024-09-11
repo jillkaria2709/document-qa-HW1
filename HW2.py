@@ -40,10 +40,8 @@ use_advanced_model = st.sidebar.checkbox("Use advanced model")
 # Retrieve API keys from Streamlit secrets
 llm_api_keys = {
     "OpenAI": st.secrets["openai"]["api_key"],
-    "Claude": st.secrets["claude"]["api_key"],
-    "Cohere": st.secrets["cohere"]["api_key"],
-    "Gemini": st.secrets["gemini"]["api_key"],
-    "Mistral": st.secrets["mistral"]["api_key"],
+    "TogetherAI": st.secrets["togetherai"]["together_api_key"],
+    "Gemini": st.secrets["gemini"]["gemini_api_key"],
 }
 
 # Main content for document or URL input
@@ -93,20 +91,12 @@ if document and question:
                 response = client.chat.completions.create(model=model, messages=messages)
                 st.write(response.choices[0].message["content"])
 
-            elif llm_option == "Claude":
+            elif llm_option == "TogetherAi":
                 # Integrate Claude API logic here using the retrieved api_key
-                pass
-
-            elif llm_option == "Cohere":
-                # Integrate Cohere API logic here using the retrieved api_key
                 pass
 
             elif llm_option == "Gemini":
                 # Integrate Gemini API logic here using the retrieved api_key
-                pass
-
-            elif llm_option == "Mistral":
-                # Integrate Mistral API logic here using the retrieved api_key
                 pass
 
         except OpenAIError as e:
