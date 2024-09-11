@@ -7,11 +7,11 @@ import io
 st.title("📄 Question the PDF")
 st.write(
     "Upload a document below and ask a question about it – GPT will answer! "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
+    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys)."
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-openai_api_key = st.text_input("OpenAI API Key", type="password")
+# Fetch the OpenAI API key from Streamlit secrets (if available)
+openai_api_key = st.secrets.get("openai", {}).get("api_key", None)
 
 # Function to read PDF files using PyMuPDF
 def read_pdf(file):
@@ -22,7 +22,7 @@ def read_pdf(file):
         text += page.get_text()
     return text
 
-# Check if the API key has been entered
+# Check if the API key is available
 if openai_api_key:
     try:
         # Attempt to create an OpenAI client to validate the API key.
@@ -80,9 +80,7 @@ if openai_api_key:
             st.write_stream(stream)
 
     except OpenAIError as e:
-        st.error(f"Invalid API Key. Please put in one that works")
+        st.error(f"OpenAI API error: {e}")
 else:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-    # Optionally, you can add placeholders for the file uploader and question input
-    st.write("Please enter a valid API key to access the document upload and question features.")
-
+    st.error("No API key found. Please ensure you have set up the API key in Streamlit Cloud secrets.")
+    st.warning("If you're running locally, the API key needs to be set in the `.streamlit/secrets.toml` file.")
