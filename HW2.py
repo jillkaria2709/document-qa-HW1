@@ -1,16 +1,20 @@
 import streamlit as st
 from openai import OpenAI
+import google.generativeai as genai
 import requests
 
 # Show title and description
 st.title("📄 Document Summarizer")
 st.write(
-    "Upload a document or provide a URL and choose how you want it summarized – GPT will generate a summary! "
+    "Upload a document or provide a URL and choose how you want it summarized – GPT or Gemini will generate a summary! "
     "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
 )
 
-# OpenAI client
-client = OpenAI(api_key=st.secrets["openai_key"])
+# OpenAI client configuration
+openai_client = OpenAI(api_key=st.secrets["openai_key"])
+
+# Gemini API configuration
+genai.configure(api_key=st.secrets["gemini_api_key"])
 
 # Sidebar options for input method
 input_method = st.sidebar.radio("Select input method:", ("Upload a document", "Enter a URL"))
@@ -29,8 +33,10 @@ language = st.sidebar.selectbox(
 )
 
 # Checkbox for advanced model usage
-use_advanced_model = st.sidebar.checkbox("Use Advanced Model")
-model = "gpt-4o" if use_advanced_model else "gpt-4o-mini"
+use_advanced_model = st.sidebar.checkbox("Use Advanced OpenAI Model")
+
+# Model selection between OpenAI and Gemini
+model_provider = st.sidebar.radio("Select AI Model Provider:", ("OpenAI", "Gemini"))
 
 # Function to fetch content from a URL
 def fetch_content_from_url(url):
@@ -45,6 +51,7 @@ def fetch_content_from_url(url):
         st.error(f"An error occurred: {e}")
         return None
 
+# Variable to hold the document content
 document = None
 
 if input_method == "Upload a document":
@@ -68,19 +75,28 @@ if document:
     else:
         instruction = f"Summarize the document in 5 bullet points in {language}."
 
-    messages = [
-        {
-            "role": "user",
-            "content": f"Here's a document: {document} \n\n---\n\n {instruction}",
-        }
-    ]
+    # Using OpenAI or Gemini based on user choice
+    if model_provider == "OpenAI":
+        model = "gpt-4o" if use_advanced_model else "gpt-4o-mini"
+        messages = [
+            {
+                "role": "user",
+                "content": f"Here's a document: {document} \n\n---\n\n {instruction}",
+            }
+        ]
 
-    stream = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        stream=True,
-    )
+        # Stream OpenAI response
+        stream = openai_client.chat.completions.create(
+            model=model,
+            messages=messages,
+            stream=True,
+        )
+        st.write_stream(stream)
 
-    st.write_stream(stream)
+    elif model_provider == "Gemini":
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        gemini_response = model.generate_content(f"Here's a document: {document} \n\n---\n\n {instruction}")
+        st.write(f"**Response from Gemini:**\n{gemini_response.text}")
+
 else:
     st.write("Please upload a document or enter a URL to summarize.")
