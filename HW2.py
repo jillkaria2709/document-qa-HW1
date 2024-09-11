@@ -22,6 +22,13 @@ summary_type = st.sidebar.radio(
     ("100-word summary", "2 connecting paragraphs", "5 bullet points")
 )
 
+# Language selection dropdown
+language = st.sidebar.selectbox(
+    "Select output language:",
+    ("English", "French", "Spanish")
+)
+
+# Checkbox for advanced model usage
 use_advanced_model = st.sidebar.checkbox("Use Advanced Model")
 model = "gpt-4o" if use_advanced_model else "gpt-4o-mini"
 
@@ -55,11 +62,11 @@ elif input_method == "Enter a URL":
 # Proceed with summary generation if there's a document
 if document:
     if summary_type == "100-word summary":
-        instruction = "Summarize the document in 100 words."
+        instruction = f"Summarize the document in 100 words in {language}."
     elif summary_type == "2 connecting paragraphs":
-        instruction = "Summarize the document in 2 paragraphs."
+        instruction = f"Summarize the document in 2 paragraphs in {language}."
     else:
-        instruction = "Summarize the document in 5 bullet points."
+        instruction = f"Summarize the document in 5 bullet points in {language}."
 
     messages = [
         {
