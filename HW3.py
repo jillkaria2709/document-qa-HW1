@@ -7,6 +7,7 @@ import re
 from urllib.parse import urlparse
 import os
 from groq import Groq
+import time
 
 # Title and description
 st.title("📄 My Homework 3 Question Answering Chatbox")
@@ -103,6 +104,46 @@ def is_question_related_to_url(prompt):
     keywords = ["content", "details", "info from", "link", "URL"]
     return any(keyword in prompt.lower() for keyword in keywords)
 
+# Function to handle OpenAI streaming responses
+def stream_openai_response(prompt, model):
+    response_stream = openai.ChatCompletion.create(
+        model=model,
+        messages=[{"role": "system", "content": 'You answer questions about web services.'}, {"role": "user", "content": prompt}],
+        temperature=0,
+        max_tokens=200,
+        stream=True  # Enable streaming
+    )
+    reply = ""
+    for chunk in response_stream:
+        if 'choices' in chunk:
+            delta = chunk['choices'][0].get('delta', {}).get('content', '')
+            reply += delta
+            st.write(delta, unsafe_allow_html=True)
+            time.sleep(0.1)  # Adjust sleep to control update frequency
+    return reply
+
+# Function to handle Gemini streaming responses
+def stream_gemini_response(prompt, model):
+    model_instance = genai.GenerativeModel(model)
+    response = model_instance.start_chat().send_message(prompt, stream=True)
+    reply = ""
+    for chunk in response:
+        if chunk.text:
+            reply += chunk.text
+            st.write(chunk.text, unsafe_allow_html=True)
+            time.sleep(0.1)  # Adjust sleep to control update frequency
+    return reply
+
+# Function to handle Groq streaming responses
+def stream_groq_response(prompt, model):
+    chat_completion = groq_client.chat.completions.create(
+        messages=[{"role": "user", "content": prompt}],
+        model=model
+    )
+    reply = chat_completion.choices[0].message.content[:200]  # Limit response to 200 characters
+    st.write(reply, unsafe_allow_html=True)
+    return reply
+
 # Handling user input
 if prompt := st.chat_input("Ask your question"):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -121,50 +162,20 @@ if prompt := st.chat_input("Ask your question"):
         url_texts = []  # No URL content for general questions
 
     combined_messages = st.session_state.messages + [{"role": "system", "content": "\n".join(url_texts)}]
-    
-    # OpenAI Response Handling
+
+    # OpenAI Response Handling with Streaming
     if llm_vendor == "OpenAI":
-        client = openai.OpenAI(api_key=st.secrets["openai_key"])  # Initialize OpenAI client with secret key
-        messages = [
-            {"role": "system", "content": 'You answer questions about web services.'},
-            {"role": "user", "content": prompt}  # Pass the user's prompt as the message content
-        ]
-        # Call the OpenAI API to get the response
-        response = client.chat.completions.create(
-            model=model_to_use,
-            messages=messages,
-            temperature=0  # Adjust temperature if needed
-        )
-        reply = response.choices[0].message.content  # Get the response content
-
-        with st.chat_message("assistant"):
-            st.write(reply)
-
-        # Save the assistant's reply in the session state for conversation history
+        reply = stream_openai_response(prompt, model_to_use)
         st.session_state.messages.append({"role": "assistant", "content": reply})
-        
-    # Gemini Response Handling
+
+    # Gemini Response Handling with Streaming
     elif llm_vendor == "Gemini":
-        model = genai.GenerativeModel(model_to_use)
-        response = model.generate_content("\n".join([msg["content"] for msg in combined_messages]))
-        reply = response.text
-        with st.chat_message("assistant"):
-            st.write(reply)
+        reply = stream_gemini_response(prompt, model_to_use)
         st.session_state.messages.append({"role": "assistant", "content": reply})
     
-    # Groq Response Handling
+    # Groq Response Handling with Streaming
     elif llm_vendor == "Groq":
-        chat_completion = groq_client.chat.completions.create(
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            model=model_to_use
-        )
-        reply = chat_completion.choices[0].message.content  # Get the response content
-
-        with st.chat_message("assistant"):
-            st.write(reply)
-
+        reply = stream_groq_response(prompt, model_to_use)
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
     # Limit messages to buffer size after completing the flow
