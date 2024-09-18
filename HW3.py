@@ -184,11 +184,11 @@ if prompt := st.chat_input("Ask your question"):
     
     # Groq Response Handling
     elif llm_vendor == "Groq":
-        chat_completion = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model=model_to_use
+        response = groq_client.chat.completions.create(
+            model=model_to_use,
+            messages=combined_messages
         )
-        reply = chat_completion.choices[0].message['content']
+        reply = response.choices[0].message['content']
 
         with st.chat_message("assistant"):
             st.write(reply)
