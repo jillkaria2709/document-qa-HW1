@@ -120,7 +120,7 @@ if prompt := st.chat_input("Ask your question"):
     
     # OpenAI Response Handling
     if llm_vendor == "OpenAI":
-        client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])  # Initialize OpenAI client with secret key
+        client = openai.OpenAI(api_key=st.secrets["openai_key"])  # Initialize OpenAI client with secret key
         messages = [
             {"role": "system", "content": 'You answer questions about web services.'},
             {"role": "user", "content": prompt}  # Pass the user's prompt as the message content
