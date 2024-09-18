@@ -18,18 +18,24 @@ if st.sidebar.button("Fetch URLs"):
         try:
             response = requests.get(url)
             soup = BeautifulSoup(response.content, "html.parser")
-            return soup.get_text()[:500]  # Limiting text to first 500 characters
+            return soup.get_text()  # Store full text
         except Exception as e:
             return f"Error fetching URL: {e}"
 
+    # Store parsed content in session_state
     if url_1:
-        st.write("**First URL Content:**")
-        st.write(fetch_and_parse(url_1))
+        st.session_state['url_1_content'] = fetch_and_parse(url_1)
 
     if url_2:
-        st.write("**Second URL Content:**")
-        st.write(fetch_and_parse(url_2))
+        st.session_state['url_2_content'] = fetch_and_parse(url_2)
 
+# Button to display the content of the first URL
+if 'url_1_content' in st.session_state:
+    if st.sidebar.button("Print First URL Studied"):
+        st.write("**First URL Content:**")
+        st.write(st.session_state['url_1_content'][:500])  # Limiting output to 500 characters
+
+# Existing code for the chatbox
 if openAImodel == "mini":
     model_to_use = "gpt-4o-mini"
 else:
