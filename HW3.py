@@ -1,10 +1,34 @@
 import streamlit as st
 from openai import OpenAI
+import requests
+from bs4 import BeautifulSoup
 
-st.title('My LAB3 Question Answering chatbox')
+st.title('My HW3 Question Answering chatbox')
 
 openAImodel = st.sidebar.selectbox("Which model?", ("mini", "regular"))
 buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=2, step=1)
+
+# Input fields for two URLs
+url_1 = st.sidebar.text_input("Enter the first URL:")
+url_2 = st.sidebar.text_input("Enter the second URL:")
+
+# Button to fetch and parse the URLs
+if st.sidebar.button("Fetch URLs"):
+    def fetch_and_parse(url):
+        try:
+            response = requests.get(url)
+            soup = BeautifulSoup(response.content, "html.parser")
+            return soup.get_text()[:500]  # Limiting text to first 500 characters
+        except Exception as e:
+            return f"Error fetching URL: {e}"
+
+    if url_1:
+        st.write("**First URL Content:**")
+        st.write(fetch_and_parse(url_1))
+
+    if url_2:
+        st.write("**Second URL Content:**")
+        st.write(fetch_and_parse(url_2))
 
 if openAImodel == "mini":
     model_to_use = "gpt-4o-mini"
