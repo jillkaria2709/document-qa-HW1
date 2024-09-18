@@ -130,18 +130,19 @@ if prompt := st.chat_input("Ask your question"):
             {"role": "user", "content": prompt}  # Pass the user's prompt as the message content
         ]
 
-        # Streaming responses from OpenAI
-        response_stream = openai.ChatCompletion.create(
+        # Call the OpenAI API to get the response with streaming enabled
+        response = client.chat.completions.create(
             model=model_to_use,
             messages=messages,
-            stream=True,  # Enable streaming
-            temperature=0  # Adjust temperature if needed
+            temperature=0,  # Adjust temperature if needed
+            stream=True  # Enable streaming
         )
-
+        
         reply = ""
         assistant_msg = st.chat_message("assistant")  # Create a placeholder for the assistant message
 
-        for chunk in response_stream:
+        # Process streaming response
+        for chunk in response:
             chunk_text = chunk["choices"][0]["delta"].get("content", "")
             reply += chunk_text
             assistant_msg.write(reply)  # Update the message incrementally
