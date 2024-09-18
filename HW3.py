@@ -122,30 +122,23 @@ if prompt := st.chat_input("Ask your question"):
 
     combined_messages = st.session_state.messages + [{"role": "system", "content": "\n".join(url_texts)}]
     
-    # OpenAI Response Handling (With Streaming)
+    # OpenAI Response Handling
     if llm_vendor == "OpenAI":
         client = openai.OpenAI(api_key=st.secrets["openai_key"])  # Initialize OpenAI client with secret key
         messages = [
             {"role": "system", "content": 'You answer questions about web services.'},
             {"role": "user", "content": prompt}  # Pass the user's prompt as the message content
         ]
-
-        # Call the OpenAI API to get the response with streaming enabled
+        # Call the OpenAI API to get the response
         response = client.chat.completions.create(
             model=model_to_use,
             messages=messages,
-            temperature=0,  # Adjust temperature if needed
-            stream=True  # Enable streaming
+            temperature=0  # Adjust temperature if needed
         )
-        
-        reply = ""
-        assistant_msg = st.chat_message("assistant")  # Create a placeholder for the assistant message
+        reply = response.choices[0].message.content  # Get the response content
 
-        # Process streaming response
-        for chunk in response:
-            chunk_text = chunk["choices"][0]["delta"].get("content", "")
-            reply += chunk_text
-            assistant_msg.write(reply)  # Update the message incrementally
+        with st.chat_message("assistant"):
+            st.write(reply)
 
         # Save the assistant's reply in the session state for conversation history
         st.session_state.messages.append({"role": "assistant", "content": reply})
@@ -162,7 +155,9 @@ if prompt := st.chat_input("Ask your question"):
     # Groq Response Handling
     elif llm_vendor == "Groq":
         chat_completion = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
             model=model_to_use
         )
         reply = chat_completion.choices[0].message.content  # Get the response content
