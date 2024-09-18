@@ -107,6 +107,29 @@ def is_question_related_to_url(prompt):
     keywords = ["content", "details", "info from", "link", "URL"]
     return any(keyword in prompt.lower() for keyword in keywords)
 
+# Function to call OpenRouter API
+def call_openrouter_api(api_key, document, instruction):
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        data = {
+            "model": model_to_use,  # Use the selected model
+            "messages": [
+                {"role": "user", "content": f"Here's a document: {document} \n\n---\n\n {instruction}"},
+            ],
+        }
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", json=data, headers=headers)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("choices", [{}])[0].get("message", {}).get("content", "No completion found.")
+        else:
+            return f"OpenRouter API error: {response.status_code} - {response.text}"
+    except Exception as e:
+        return f"Error calling OpenRouter API: {e}"
+
 # Handling user input
 if prompt := st.chat_input("Ask your question"):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -173,20 +196,9 @@ if prompt := st.chat_input("Ask your question"):
 
     # OpenRouter Response Handling
     elif llm_vendor == "OpenRouter":
-        response = requests.post(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {openrouter_api_key}"
-                },
-            data=json.dumps({
-                "model": model_to_use,
-                "messages": [
-                    { "role": "user", "content": prompt }
-                ]
-            })
-        )
-        response_data = response.json()
-        reply = response_data["choices"][0]["message"]["content"]  # Get the response content
+        document = "\n".join([msg["content"] for msg in combined_messages])
+        instruction = prompt
+        reply = call_openrouter_api(openrouter_api_key, document, instruction)
 
         with st.chat_message("assistant"):
             st.write(reply)
