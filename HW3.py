@@ -12,7 +12,8 @@ def initialize_gemini_client(api_key):
 
 # Initialize OpenRouter client
 def initialize_openrouter_client(api_key):
-    return OpenAI(api_key=api_key, model="openrouter")  # Replace with actual OpenRouter client initialization
+    # Replace with actual OpenRouter client initialization if available
+    return OpenAI(api_key=api_key, model="openrouter")
 
 # Function to fetch data from URL
 def fetch_url_content(url):
@@ -38,7 +39,11 @@ memory_type = st.sidebar.radio("Conversation Memory", ["Short-term", "Long-term"
 
 # Initialize the correct LLM client based on user selection
 if 'client' not in st.session_state:
-    api_key = st.secrets["openai_key"] if llm_vendor in ["OpenAI", "Gemini"] else st.secrets["openrouter_key"]
+    api_key = {
+        "OpenAI": st.secrets["openai_key"],
+        "Gemini": st.secrets["gemini_api_key"],
+        "OpenRouter": st.secrets["openrouter_api_key"]
+    }[llm_vendor]
     
     if llm_vendor == "OpenAI":
         model_to_use = openAImodel
@@ -88,7 +93,7 @@ if prompt := st.chat_input("Ask me anything!"):
     with st.chat_message("assistant"):
         response = st.write_stream(stream)
 
-    # Limit the response to 150 words
+    # Limit the response to 150 characters
     response = response[:150]
     st.session_state.messages.append({"role": "assistant", "content": response})
 
