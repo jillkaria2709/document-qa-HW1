@@ -45,11 +45,11 @@ buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=
 
 # Set up LLM clients based on the vendor
 if llm_vendor == "OpenAI":
-    openai.api_key = st.secrets["openai_key"]
+    openai.api_key = st.secrets["OPENAI_API_KEY"]
 elif llm_vendor == "Gemini":
-    genai.configure(api_key=st.secrets["gemini_api_key"])
+    genai.configure(api_key=st.secrets["API_KEY"])
 elif llm_vendor == "Groq":
-    groq_client = Groq(api_key=st.secrets["grok_api_key"])
+    groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # A dictionary to store parsed URL content in session state
 if "parsed_urls" not in st.session_state:
@@ -194,4 +194,4 @@ if prompt := st.chat_input("Ask your question"):
 
     # Limit messages to buffer size after completing the flow
     if len(st.session_state.messages) > buffer_size * 2:
-        st.session_state.messages = st.session_state.messages[-buffer_size * 2:]
+        st.session_state.messages = st.session_state.messages[-buffer_size*2:]
