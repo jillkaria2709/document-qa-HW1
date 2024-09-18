@@ -52,12 +52,12 @@ if model_provider == "OpenAI":
     client = st.session_state.client
 
 elif model_provider == "Gemini":
-    genai.configure(api_key=st.secrets["gemini_api_key"])
+    genai.configure(api_key=st.secrets["gemini_key"])
     model_to_use = "gemini-1.5-flash-latest"
 
 elif model_provider == "OpenRouter":
     model_to_use = "mattshumer/reflection-70b:free"  # Example model
-    api_key = st.secrets["openrouter_api_key"]
+    api_key = st.secrets["openrouter_key"]
 
 # Existing chatbox logic
 if 'messages' not in st.session_state:
@@ -87,9 +87,16 @@ if prompt := st.chat_input("What is up?"):
         )
 
     elif model_provider == "Gemini":
-        gemini_response = genai.generate_content(f"Here's a document: {st.session_state['url_1_content'][:1000]} \n\n {prompt}")
-        st.session_state.messages.append({"role": "assistant", "content": gemini_response.result})
-        st.write(gemini_response.result)
+        try:
+            # Use the correct method for Gemini
+            gemini_response = genai.chat_completion(
+                model=model_to_use,
+                messages=st.session_state.messages
+            )
+            st.session_state.messages.append({"role": "assistant", "content": gemini_response['choices'][0]['message']['content']})
+            st.write(gemini_response['choices'][0]['message']['content'])
+        except Exception as e:
+            st.write(f"Error with Gemini API: {e}")
 
     elif model_provider == "OpenRouter":
         def call_openrouter_api(api_key, document, instruction):
