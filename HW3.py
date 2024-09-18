@@ -83,10 +83,6 @@ def extract_text_from_url(url):
         # Clean up the text
         text = re.sub(r'\s+', ' ', text).strip()
         st.session_state["parsed_urls"][url] = text  # Cache the parsed content
-        
-        # Add message to the sidebar
-        st.sidebar.success(f"URL {url} studied and parsed.")
-        
         return text
     except requests.exceptions.RequestException as e:
         st.error(f"Error fetching URL {url}: {e}")
@@ -95,8 +91,10 @@ def extract_text_from_url(url):
 # Parse URLs and cache the content in memory
 if url1 and is_valid_url(url1):
     extract_text_from_url(url1)
+    st.sidebar.write(f"URL 1 studied successfully.")
 if url2 and is_valid_url(url2):
     extract_text_from_url(url2)
+    st.sidebar.write(f"URL 2 studied successfully.")
 
 # Function to check if the user's question is related to the URL
 def is_question_related_to_url(prompt):
@@ -114,14 +112,20 @@ if prompt := st.chat_input("Ask your question"):
     with st.chat_message("user"):
         st.markdown(prompt)
     
+    # Determine if the question is related to the URL content
+    url_related = is_question_related_to_url(prompt)
+    
     # Combine conversation history and URL texts only if the prompt is related to the URL
-    if is_question_related_to_url(prompt):
+    if url_related:
         url_texts = list(st.session_state["parsed_urls"].values())
     else:
         url_texts = []  # No URL content for general questions
 
     combined_messages = st.session_state.messages + [{"role": "system", "content": "\n".join(url_texts)}]
-    
+
+    # Initialize the response variable
+    reply = ""
+
     # OpenAI Response Handling
     if llm_vendor == "OpenAI":
         client = openai.OpenAI(api_key=st.secrets["openai_key"])  # Initialize OpenAI client with secret key
@@ -137,36 +141,33 @@ if prompt := st.chat_input("Ask your question"):
         )
         reply = response.choices[0].message.content  # Get the response content
 
-        with st.chat_message("assistant"):
-            st.write(reply)
-
-        # Save the assistant's reply in the session state for conversation history
-        st.session_state.messages.append({"role": "assistant", "content": reply})
-        
     # Gemini Response Handling
     elif llm_vendor == "Gemini":
         model = genai.GenerativeModel(model_to_use)
         response = model.generate_content("\n".join([msg["content"] for msg in combined_messages]))
         reply = response.text
-        with st.chat_message("assistant"):
-            st.write(reply)
-        st.session_state.messages.append({"role": "assistant", "content": reply})
     
     # Groq Response Handling
     elif llm_vendor == "Groq":
         chat_completion = groq_client.chat.completions.create(
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "user", "content": prompt}],
             model=model_to_use
         )
         reply = chat_completion.choices[0].message.content  # Get the response content
 
-        with st.chat_message("assistant"):
-            st.write(reply)
+    # Display the model's reply
+    with st.chat_message("assistant"):
+        st.write(reply)
 
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+    # Append the assistant's reply to the session state for conversation history
+    st.session_state.messages.append({"role": "assistant", "content": reply})
 
+    # Show a message if the answer was based on the URL or model's general knowledge
+    if url_related:
+        st.sidebar.write("The answer was derived from the studied URLs.")
+    else:
+        st.sidebar.write("The answer was generated from the model's general knowledge.")
+    
     # Limit messages to buffer size after completing the flow
     if len(st.session_state.messages) > buffer_size * 2:
         st.session_state.messages = st.session_state.messages[-buffer_size*2:]
