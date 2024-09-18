@@ -4,3 +4,4 @@ pymupdf
 beautifulsoup4
 google-generativeai
 Groq
+transformers
