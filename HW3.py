@@ -7,6 +7,9 @@ import re
 from urllib.parse import urlparse
 import os
 from groq import Groq
+import vertexai
+from vertexai.generative_models import GenerativeModel, ChatSession
+import time
 
 # Title and description
 st.title("📄 My Homework 3 Question Answering Chatbox")
@@ -47,7 +50,8 @@ buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=
 if llm_vendor == "OpenAI":
     openai.api_key = st.secrets["openai_key"]
 elif llm_vendor == "Gemini":
-    genai.configure(api_key=st.secrets["gemini_api_key"])
+    vertexai.init(project=st.secrets["vertexai_project_id"], location="us-central1")
+    gemini_model = GenerativeModel("gemini-1.5-flash-001")
 elif llm_vendor == "Groq":
     groq_client = Groq(api_key=st.secrets["grok_api_key"])
 
@@ -121,49 +125,49 @@ if prompt := st.chat_input("Ask your question"):
         url_texts = []  # No URL content for general questions
 
     combined_messages = st.session_state.messages + [{"role": "system", "content": "\n".join(url_texts)}]
-    
-    # OpenAI Response Handling
+
+    # OpenAI Response Handling with Streaming
     if llm_vendor == "OpenAI":
-        client = openai.OpenAI(api_key=st.secrets["openai_key"])  # Initialize OpenAI client with secret key
-        messages = [
-            {"role": "system", "content": 'You answer questions about web services.'},
-            {"role": "user", "content": prompt}  # Pass the user's prompt as the message content
-        ]
-        # Call the OpenAI API to get the response
-        response = client.chat.completions.create(
+        response_stream = openai.ChatCompletion.create(
             model=model_to_use,
-            messages=messages,
+            messages=combined_messages,
             temperature=0,
-            max_tokens=200  # Limit the response to 200 words (approx)
+            max_tokens=200,
+            stream=True  # Enable streaming
         )
-        reply = response.choices[0].message.content  # Get the response content
+        reply = ""
+        for chunk in response_stream:
+            if 'choices' in chunk:
+                delta = chunk['choices'][0].get('delta', {}).get('content', '')
+                reply += delta
+                with st.chat_message("assistant"):
+                    st.write(reply, unsafe_allow_html=True)
+            time.sleep(0.1)  # Adjust sleep to control update frequency
 
-        with st.chat_message("assistant"):
-            st.write(reply)
-
-        # Save the assistant's reply in the session state for conversation history
         st.session_state.messages.append({"role": "assistant", "content": reply})
-        
-    # Gemini Response Handling
+
+    # Gemini Response Handling with Streaming
     elif llm_vendor == "Gemini":
-        model = genai.GenerativeModel(model_to_use)
-        response = model.generate_content("\n".join([msg["content"] for msg in combined_messages]))
-        reply = response.text[:200]  # Limit the response to 200 characters
-        with st.chat_message("assistant"):
-            st.write(reply)
+        chat = gemini_model.start_chat()
+        text_response = []
+        responses = chat.send_message(prompt, stream=True)
+        for chunk in responses:
+            text_response.append(chunk.text)
+            with st.chat_message("assistant"):
+                st.write("".join(text_response), unsafe_allow_html=True)
+            time.sleep(0.1)  # Adjust sleep to control update frequency
+        reply = "".join(text_response)
         st.session_state.messages.append({"role": "assistant", "content": reply})
-    
-    # Groq Response Handling
+
+    # Groq Response Handling with Streaming
     elif llm_vendor == "Groq":
         chat_completion = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=model_to_use
         )
         reply = chat_completion.choices[0].message.content[:200]  # Limit response to 200 characters
-
         with st.chat_message("assistant"):
-            st.write(reply)
-
+            st.write(reply, unsafe_allow_html=True)
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
     # Limit messages to buffer size after completing the flow
