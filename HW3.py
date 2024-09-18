@@ -34,7 +34,7 @@ memory_type = st.sidebar.radio("Conversation Memory", ["Short-term", "Long-term"
 
 # Initialize the correct LLM client based on user selection
 if 'client' not in st.session_state:
-    api_key = st.secrets["openai_key"] if llm_vendor == "OpenAI" else st.secrets["openrouter_key"]
+    api_key = st.secrets["openai_key"] if llm_vendor == "OpenAI" else st.secrets["openrouter_api_key"]
     
     if llm_vendor == "OpenAI":
         model_to_use = openAImodel
