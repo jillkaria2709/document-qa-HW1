@@ -9,7 +9,7 @@ import os
 from groq import Groq
 
 # Title and description
-st.title("📄 My Homework 3 question answering Chatbox")
+st.title("📄 My Homework 3 Question Answering Chatbox")
 
 # Sidebar options
 st.sidebar.header("Options")
@@ -162,35 +162,6 @@ if prompt := st.chat_input("Ask your question"):
             st.write(reply)
 
         st.session_state.messages.append({"role": "assistant", "content": reply})
-
-    # Asking for more information
-    more_info_prompt = "Do you want more information?"
-    with st.chat_message("assistant"):
-        st.write(more_info_prompt)
-    st.session_state.messages.append({"role": "assistant", "content": more_info_prompt})
-
-    # Get user input for more information
-    if follow_up := st.chat_input("Please type 'yes' or 'no':", key="follow_up"):
-        st.session_state.messages.append({"role": "user", "content": follow_up})
-
-        if follow_up.lower() == "yes":
-            # If user says 'yes', provide more info
-            with st.chat_message("assistant"):
-                more_info_response = f"Here's some additional info: {reply}"  
-                st.write(more_info_response)
-            st.session_state.messages.append({"role": "assistant", "content": more_info_response})
-            
-            # Ask again after providing more info
-            with st.chat_message("assistant"):
-                st.write("Do you want help with other questions?")
-            st.session_state.messages.append({"role": "assistant", "content": "Do you want help with other questions?"})
-        
-        elif follow_up.lower() == "no":
-            # If user says 'no', ask if they need help with other questions
-            next_question_prompt = "Do you want help with other questions?"
-            with st.chat_message("assistant"):
-                st.write(next_question_prompt)
-            st.session_state.messages.append({"role": "assistant", "content": next_question_prompt})
 
     # Limit messages to buffer size after completing the flow
     if len(st.session_state.messages) > buffer_size * 2:
