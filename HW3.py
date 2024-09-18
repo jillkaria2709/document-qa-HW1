@@ -3,6 +3,7 @@ from openai import OpenAI
 import requests
 from bs4 import BeautifulSoup
 import json
+import gemini  # Placeholder for the actual Gemini client library
 
 st.title('My HW3 Question Answering Chatbox')
 
@@ -42,8 +43,9 @@ if 'client' not in st.session_state:
         "OpenRouter": st.secrets["openrouter_api_key"]
     }
     st.session_state.clients = {
-        provider: OpenAI(api_key=api_keys["OpenAI"]) if provider == "OpenAI" else None
-        for provider in ["OpenAI", "Gemini", "OpenRouter"]
+        "OpenAI": OpenAI(api_key=api_keys["OpenAI"]),
+        "Gemini": gemini.Client(api_key=api_keys["Gemini"]),  # Adjust according to actual library
+        "OpenRouter": None  # Set up OpenRouter client later
     }
 
 if 'messages' not in st.session_state:
@@ -82,9 +84,11 @@ if prompt := st.chat_input("What is up?"):
 
     elif model_provider == "Gemini":
         try:
-            response_stream = genai.chat_completion_stream(
-                model="gemini-model",
-                messages=st.session_state.messages
+            client = st.session_state.clients["Gemini"]
+            response_stream = client.chat_completions.create(
+                model="gemini-model",  # Replace with actual model name
+                messages=st.session_state.messages,
+                stream=True
             )
 
             for chunk in response_stream:
