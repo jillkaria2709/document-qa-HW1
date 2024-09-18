@@ -10,6 +10,11 @@ def initialize_openai_client(api_key, model_to_use):
 def initialize_gemini_client(api_key):
     return OpenAI(api_key=api_key, model="gemini")
 
+# Initialize OpenRouter client
+def initialize_openrouter_client(api_key):
+    # Replace with actual OpenRouter client initialization if available
+    return OpenAI(api_key=api_key, model="openrouter")
+
 # Function to fetch data from URL
 def fetch_url_content(url):
     try:
@@ -21,8 +26,8 @@ def fetch_url_content(url):
 st.title('My LAB3 Question Answering Chatbox')
 
 # Sidebar: Model selection
-llm_vendor = st.sidebar.radio("Select LLM Vendor", ("OpenAI", "Gemini", "Hermes"))
-openAImodel = st.sidebar.radio("OpenAI Models", ("gpt-3.5", "gpt-4o"), disabled=llm_vendor != "OpenAI")
+llm_vendor = st.sidebar.radio("Select LLM Vendor", ("OpenAI", "Gemini", "OpenRouter"))
+openAImodel = st.sidebar.radio("OpenAI Models", ("gpt-3.5", "gpt-4"), disabled=llm_vendor != "OpenAI")
 
 # Sidebar: URLs
 url1 = st.sidebar.text_input("URL 1")
@@ -34,13 +39,19 @@ memory_type = st.sidebar.radio("Conversation Memory", ["Short-term", "Long-term"
 
 # Initialize the correct LLM client based on user selection
 if 'client' not in st.session_state:
-    api_key = st.secrets["openai_key"] if llm_vendor == "OpenAI" else st.secrets["openrouter_api_key"]
+    api_key = {
+        "OpenAI": st.secrets["openai_key"],
+        "Gemini": st.secrets["gemini_api_key"],
+        "OpenRouter": st.secrets["openrouter_api_key"]
+    }[llm_vendor]
     
     if llm_vendor == "OpenAI":
         model_to_use = openAImodel
         st.session_state.client = initialize_openai_client(api_key, model_to_use)
     elif llm_vendor == "Gemini":
         st.session_state.client = initialize_gemini_client(api_key)
+    elif llm_vendor == "OpenRouter":
+        st.session_state.client = initialize_openrouter_client(api_key)
 
 # Manage conversation history
 if 'messages' not in st.session_state:
@@ -73,7 +84,7 @@ if prompt := st.chat_input("Ask me anything!"):
     # Stream the LLM response
     client = st.session_state.client
     stream = client.chat.completions.create(
-        model=model_to_use if llm_vendor == "OpenAI" else "other_model",
+        model="gpt-4" if llm_vendor == "OpenAI" else "other_model",
         messages=st.session_state.messages,
         stream=True
     )
@@ -82,7 +93,7 @@ if prompt := st.chat_input("Ask me anything!"):
     with st.chat_message("assistant"):
         response = st.write_stream(stream)
 
-    # Limit the response to 150 words
+    # Limit the response to 150 characters
     response = response[:150]
     st.session_state.messages.append({"role": "assistant", "content": response})
 
