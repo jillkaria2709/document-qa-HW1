@@ -36,9 +36,9 @@ else:
 if llm_vendor == "OpenAI":
     model_to_use = st.sidebar.selectbox("Select OpenAI Model", ["gpt-4", "gpt-3.5-turbo"])
 elif llm_vendor == "Gemini":
-    model_to_use = st.sidebar.selectbox("Select Gemini Model", ["gemini-1.5-flash", "gemini-1.5-pro"])
+    model_to_use = "gemini-1.5-flash"  # Always use gemini-1.5-flash
 elif llm_vendor == "Groq":
-    model_to_use = st.sidebar.selectbox("Select Groq Model", ["llama3-8b-8192", "other-groq-model"])
+    model_to_use = "llama3-8b-8192"  # Always use llama3-8b-8192
 
 # Buffer size slider
 buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=2, step=1)
