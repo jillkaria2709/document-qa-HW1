@@ -2,20 +2,18 @@ import streamlit as st
 from openai import OpenAI
 import requests
 from bs4 import BeautifulSoup
-import google.generativeai as genai  # For Gemini
+import json
 
-st.title('My HW3 Question Answering chatbox')
+st.title('My HW3 Question Answering Chatbox')
 
-# Sidebar to select the LLM vendor (Gemini, OpenRouter, OpenAI)
-model_provider = st.sidebar.selectbox("Select LLM Vendor", ("OpenAI", "Gemini", "OpenRouter"))
-openAImodel = st.sidebar.selectbox("Which OpenAI model?", ("mini", "regular"))
+# Sidebar for model selection and input URLs
+model_provider = st.sidebar.selectbox("Which model?", ("OpenAI", "Gemini", "OpenRouter"))
 buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=2, step=1)
 
-# Input fields for two URLs
 url_1 = st.sidebar.text_input("Enter the first URL:")
 url_2 = st.sidebar.text_input("Enter the second URL:")
 
-# Button to fetch and parse the URLs
+# Fetch and parse URLs
 if st.sidebar.button("Fetch URLs"):
     def fetch_and_parse(url):
         try:
@@ -25,41 +23,29 @@ if st.sidebar.button("Fetch URLs"):
         except Exception as e:
             return f"Error fetching URL: {e}"
 
-    # Store parsed content in session_state
     if url_1:
         st.session_state['url_1_content'] = fetch_and_parse(url_1)
-
     if url_2:
         st.session_state['url_2_content'] = fetch_and_parse(url_2)
 
-# Button to display the content of the first URL
+# Display the content of the first URL
 if 'url_1_content' in st.session_state:
     if st.sidebar.button("Print First URL Studied"):
         st.write("**First URL Content:**")
         st.write(st.session_state['url_1_content'][:500])  # Limiting output to 500 characters
 
-# API Configuration based on model selection
-if model_provider == "OpenAI":
-    if openAImodel == "mini":
-        model_to_use = "gpt-4o-mini"
-    else:
-        model_to_use = "gpt-4o"
+# Initialize LLM clients
+if 'client' not in st.session_state:
+    api_keys = {
+        "OpenAI": st.secrets["openai_key"],
+        "Gemini": st.secrets["gemini_api_key"],
+        "OpenRouter": st.secrets["openrouter_api_key"]
+    }
+    st.session_state.clients = {
+        provider: OpenAI(api_key=api_keys["OpenAI"]) if provider == "OpenAI" else None
+        for provider in ["OpenAI", "Gemini", "OpenRouter"]
+    }
 
-    if 'client' not in st.session_state:
-        api_key = st.secrets["openai_key"]
-        st.session_state.client = OpenAI(api_key=api_key)
-
-    client = st.session_state.client
-
-elif model_provider == "Gemini":
-    genai.configure(api_key=st.secrets["gemini_api_key"])
-    model_to_use = "gemini-1.5-flash-latest"
-
-elif model_provider == "OpenRouter":
-    model_to_use = "mattshumer/reflection-70b:free"  # Example model
-    api_key = st.secrets["openrouter_api_key"]
-
-# Existing chatbox logic
 if 'messages' not in st.session_state:
     st.session_state["messages"] = [{"role": "assistant", "content": "How can I help?"}]
 
@@ -68,7 +54,7 @@ for msg in st.session_state.messages:
     chat_msg = st.chat_message(msg["role"])
     chat_msg.write(msg["content"])
 
-# Input prompt
+# Handle user input
 if prompt := st.chat_input("What is up?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
@@ -79,51 +65,71 @@ if prompt := st.chat_input("What is up?"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    response_text = ""
     if model_provider == "OpenAI":
+        client = st.session_state.clients["OpenAI"]
         stream = client.chat.completions.create(
-            model=model_to_use,
+            model="gpt-4" if st.sidebar.selectbox("OpenAI Model", ("mini", "regular")) == "regular" else "gpt-4-mini",
             messages=st.session_state.messages,
             stream=True
         )
 
+        for chunk in stream:
+            if 'choices' in chunk and len(chunk['choices']) > 0:
+                message = chunk['choices'][0].get('message', {})
+                response_text += message.get('content', '')
+                st.chat_message("assistant").write(response_text)
+
     elif model_provider == "Gemini":
         try:
-            # Use the correct method for Gemini
-            gemini_response = genai.chat_completion(
-                model=model_to_use,
+            response_stream = genai.chat_completion_stream(
+                model="gemini-model",
                 messages=st.session_state.messages
             )
-            st.session_state.messages.append({"role": "assistant", "content": gemini_response['choices'][0]['message']['content']})
-            st.write(gemini_response['choices'][0]['message']['content'])
+
+            for chunk in response_stream:
+                if 'choices' in chunk and len(chunk['choices']) > 0:
+                    message = chunk['choices'][0].get('message', {})
+                    response_text += message.get('content', '')
+                    st.chat_message("assistant").write(response_text)
+
         except Exception as e:
             st.write(f"Error with Gemini API: {e}")
 
     elif model_provider == "OpenRouter":
-        def call_openrouter_api(api_key, document, instruction):
+        def call_openrouter_streaming_api(api_key, document, instruction):
             try:
                 headers = {
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 }
                 data = {
-                    "model": model_to_use,
+                    "model": "openrouter-model",
                     "messages": [
                         {"role": "user", "content": f"Here's a document: {document} \n\n---\n\n {instruction}"},
                     ],
                 }
-                response = requests.post("https://openrouter.ai/api/v1/chat/completions", json=data, headers=headers)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    return result.get("choices", [{}])[0].get("message", {}).get("content", "No completion found.")
-                else:
-                    return f"OpenRouter API error: {response.status_code} - {response.text}"
+                response = requests.post("https://openrouter.ai/api/v1/chat/completions/stream", json=data, headers=headers, stream=True)
+
+                response_text = ""
+                for line in response.iter_lines():
+                    if line:
+                        chunk = line.decode('utf-8')
+                        result = json.loads(chunk)
+                        if 'choices' in result and len(result['choices']) > 0:
+                            message = result['choices'][0].get('message', {})
+                            response_text += message.get('content', '')
+                            st.chat_message("assistant").write(response_text)
+
+                return response_text
             except Exception as e:
                 return f"Error calling OpenRouter API: {e}"
 
-        openrouter_response = call_openrouter_api(api_key, st.session_state['url_1_content'][:1000], prompt)
-        st.session_state.messages.append({"role": "assistant", "content": openrouter_response})
+        openrouter_response = call_openrouter_streaming_api(st.secrets["openrouter_api_key"], st.session_state['url_1_content'][:1000], prompt)
+        st.session_state.messages.append({"role": "assistant", "content": openrouter_response[:150]})
         st.write(openrouter_response)
+
+    st.session_state.messages.append({"role": "assistant", "content": response_text[:150]})
 
     # Automatically ask for more information
     more_info_question = "Want more info? (Yes/No)"
