@@ -83,6 +83,10 @@ def extract_text_from_url(url):
         # Clean up the text
         text = re.sub(r'\s+', ' ', text).strip()
         st.session_state["parsed_urls"][url] = text  # Cache the parsed content
+        
+        # Add message to the sidebar
+        st.sidebar.success(f"URL {url} studied and parsed.")
+        
         return text
     except requests.exceptions.RequestException as e:
         st.error(f"Error fetching URL {url}: {e}")
