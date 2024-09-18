@@ -45,11 +45,11 @@ buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=
 
 # Set up LLM clients based on the vendor
 if llm_vendor == "OpenAI":
-    openai.api_key = st.secrets["OPENAI_API_KEY"]
+    openai.api_key = st.secrets["openai_key"]
 elif llm_vendor == "Gemini":
-    genai.configure(api_key=st.secrets["API_KEY"])
+    genai.configure(api_key=st.secrets["gemini_api_key"])
 elif llm_vendor == "Groq":
-    groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    groq_client = Groq(api_key=st.secrets["groq_api_key"])
 
 # A dictionary to store parsed URL content in session state
 if "parsed_urls" not in st.session_state:
