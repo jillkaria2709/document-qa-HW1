@@ -2,8 +2,8 @@ import streamlit as st
 from openai import OpenAI
 import requests
 from bs4 import BeautifulSoup
+import google.generativeai as genai
 import json
-import gemini  # Placeholder for the actual Gemini client library
 
 st.title('My HW3 Question Answering Chatbox')
 
@@ -44,7 +44,7 @@ if 'client' not in st.session_state:
     }
     st.session_state.clients = {
         "OpenAI": OpenAI(api_key=api_keys["OpenAI"]),
-        "Gemini": gemini.Client(api_key=api_keys["Gemini"]),  # Adjust according to actual library
+        "Gemini": genai.Client(api_key=api_keys["Gemini"]),  # Using google-generativeai library
         "OpenRouter": None  # Set up OpenRouter client later
     }
 
@@ -85,13 +85,13 @@ if prompt := st.chat_input("What is up?"):
     elif model_provider == "Gemini":
         try:
             client = st.session_state.clients["Gemini"]
-            response_stream = client.chat_completions.create(
+            response = client.chat.completions.create(
                 model="gemini-model",  # Replace with actual model name
                 messages=st.session_state.messages,
                 stream=True
             )
 
-            for chunk in response_stream:
+            for chunk in response:
                 if 'choices' in chunk and len(chunk['choices']) > 0:
                     message = chunk['choices'][0].get('message', {})
                     response_text += message.get('content', '')
