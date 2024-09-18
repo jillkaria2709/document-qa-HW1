@@ -131,7 +131,7 @@ if prompt := st.chat_input("Ask your question"):
         ]
 
         # Streaming responses from OpenAI
-        response_stream = openai.ChatCompletion.create(
+        response_stream = openai.chat.completions.create(
             model=model_to_use,
             messages=messages,
             stream=True,  # Enable streaming
