@@ -7,7 +7,6 @@ import re
 from urllib.parse import urlparse
 import os
 from groq import Groq
-import time
 
 # Title and description
 st.title("📄 My Homework 3 Question Answering Chatbox")
@@ -104,23 +103,15 @@ def is_question_related_to_url(prompt):
     keywords = ["content", "details", "info from", "link", "URL"]
     return any(keyword in prompt.lower() for keyword in keywords)
 
-# Function to handle OpenAI streaming responses
-def stream_openai_response(prompt, model):
-    response_stream = openai.ChatCompletion.create(
+# Function to handle OpenAI responses
+def get_openai_response(prompt, model):
+    response = openai.ChatCompletion.create(
         model=model,
         messages=[{"role": "system", "content": 'You answer questions about web services.'}, {"role": "user", "content": prompt}],
         temperature=0,
-        max_tokens=200,
-        stream=True  # Enable streaming
+        max_tokens=200
     )
-    reply = ""
-    for chunk in response_stream:
-        if 'choices' in chunk:
-            delta = chunk['choices'][0].get('delta', {}).get('content', '')
-            reply += delta
-            st.write(delta, unsafe_allow_html=True)
-            time.sleep(0.1)  # Adjust sleep to control update frequency
-    return reply
+    return response.choices[0].message.content
 
 # Function to handle Gemini streaming responses
 def stream_gemini_response(prompt, model):
@@ -131,18 +122,19 @@ def stream_gemini_response(prompt, model):
         if chunk.text:
             reply += chunk.text
             st.write(chunk.text, unsafe_allow_html=True)
-            time.sleep(0.1)  # Adjust sleep to control update frequency
     return reply
 
-# Function to handle Groq streaming responses
-def stream_groq_response(prompt, model):
+# Function to handle Groq responses with character limit handling
+def get_groq_response(prompt, model, max_chunk_size=4096):
     chat_completion = groq_client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
         model=model
     )
-    reply = chat_completion.choices[0].message.content[:200]  # Limit response to 200 characters
-    st.write(reply, unsafe_allow_html=True)
-    return reply
+    full_response = chat_completion.choices[0].message.content  # Get the full response content
+
+    # Split the response into chunks if it exceeds the character limit
+    reply_chunks = [full_response[i:i+max_chunk_size] for i in range(0, len(full_response), max_chunk_size)]
+    return " ".join(reply_chunks)
 
 # Handling user input
 if prompt := st.chat_input("Ask your question"):
@@ -163,19 +155,19 @@ if prompt := st.chat_input("Ask your question"):
 
     combined_messages = st.session_state.messages + [{"role": "system", "content": "\n".join(url_texts)}]
 
-    # OpenAI Response Handling with Streaming
+    # OpenAI Response Handling without Streaming
     if llm_vendor == "OpenAI":
-        reply = stream_openai_response(prompt, model_to_use)
+        reply = get_openai_response(prompt, model_to_use)
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
     # Gemini Response Handling with Streaming
     elif llm_vendor == "Gemini":
         reply = stream_gemini_response(prompt, model_to_use)
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+        st.session_state.messages.append({"role": "assistant", "content": reply"})
     
-    # Groq Response Handling with Streaming
+    # Groq Response Handling without Streaming
     elif llm_vendor == "Groq":
-        reply = stream_groq_response(prompt, model_to_use)
+        reply = get_groq_response(prompt, model_to_use)
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
     # Limit messages to buffer size after completing the flow
