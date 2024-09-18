@@ -133,7 +133,8 @@ if prompt := st.chat_input("Ask your question"):
         response = client.chat.completions.create(
             model=model_to_use,
             messages=messages,
-            temperature=0  # Adjust temperature if needed
+            temperature=0,
+            max_tokens=200  # Limit the response to 200 words (approx)
         )
         reply = response.choices[0].message.content  # Get the response content
 
@@ -147,7 +148,7 @@ if prompt := st.chat_input("Ask your question"):
     elif llm_vendor == "Gemini":
         model = genai.GenerativeModel(model_to_use)
         response = model.generate_content("\n".join([msg["content"] for msg in combined_messages]))
-        reply = response.text
+        reply = response.text[:200]  # Limit the response to 200 characters
         with st.chat_message("assistant"):
             st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
@@ -155,12 +156,10 @@ if prompt := st.chat_input("Ask your question"):
     # Groq Response Handling
     elif llm_vendor == "Groq":
         chat_completion = groq_client.chat.completions.create(
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "user", "content": prompt}],
             model=model_to_use
         )
-        reply = chat_completion.choices[0].message.content  # Get the response content
+        reply = chat_completion.choices[0].message.content[:200]  # Limit response to 200 characters
 
         with st.chat_message("assistant"):
             st.write(reply)
