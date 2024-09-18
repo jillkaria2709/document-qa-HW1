@@ -176,10 +176,8 @@ if prompt := st.chat_input("Ask your question"):
         response = requests.post(
             url="https://openrouter.ai/api/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {openrouter_api_key}",
-                "HTTP-Referer": f"{YOUR_SITE_URL}", # Optional, replace with your site URL
-                "X-Title": f"{YOUR_APP_NAME}", # Optional, replace with your app name
-            },
+                "Authorization": f"Bearer {openrouter_api_key}"
+                },
             data=json.dumps({
                 "model": model_to_use,
                 "messages": [
