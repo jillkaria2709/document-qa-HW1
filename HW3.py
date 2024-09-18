@@ -1,14 +1,10 @@
 import streamlit as st
 import openai
-import google.generativeai as genai
 import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urlparse
-import os
 from groq import Groq
-import vertexai
-from vertexai.generative_models import GenerativeModel, ChatSession
 import time
 
 # Title and description
@@ -21,8 +17,8 @@ st.sidebar.header("Options")
 url1 = st.sidebar.text_input("URL 1")
 url2 = st.sidebar.text_input("URL 2")
 
-# Option to pick the LLM vendor (OpenAI, Gemini, Groq)
-llm_vendor = st.sidebar.selectbox("Select LLM Vendor", ["OpenAI", "Gemini", "Groq"])
+# Option to pick the LLM vendor (OpenAI, Groq)
+llm_vendor = st.sidebar.selectbox("Select LLM Vendor", ["OpenAI", "Groq"])
 
 # Option to pick the type of conversation memory
 memory_type = st.sidebar.selectbox("Select Conversation Memory Type", ["Buffer of 5 questions", "Conversation Summary", "Buffer of 5,000 tokens"])
@@ -38,8 +34,6 @@ else:
 # Model selection based on LLM vendor
 if llm_vendor == "OpenAI":
     model_to_use = st.sidebar.selectbox("Select OpenAI Model", ["gpt-4", "gpt-3.5-turbo"])
-elif llm_vendor == "Gemini":
-    model_to_use = "gemini-1.5-flash"  # Always use gemini-1.5-flash
 elif llm_vendor == "Groq":
     model_to_use = "llama3-8b-8192"  # Always use llama3-8b-8192
 
@@ -49,9 +43,6 @@ buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=
 # Set up LLM clients based on the vendor
 if llm_vendor == "OpenAI":
     openai.api_key = st.secrets["openai_key"]
-elif llm_vendor == "Gemini":
-    vertexai.init(project=st.secrets["vertexai_project_id"], location="us-central1")
-    gemini_model = GenerativeModel("gemini-1.5-flash-001")
 elif llm_vendor == "Groq":
     groq_client = Groq(api_key=st.secrets["grok_api_key"])
 
@@ -107,6 +98,11 @@ def is_question_related_to_url(prompt):
     keywords = ["content", "details", "info from", "link", "URL"]
     return any(keyword in prompt.lower() for keyword in keywords)
 
+# Function to truncate text to a specified word limit
+def truncate_text(text, word_limit):
+    words = text.split()
+    return ' '.join(words[:word_limit])
+
 # Handling user input
 if prompt := st.chat_input("Ask your question"):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -140,23 +136,11 @@ if prompt := st.chat_input("Ask your question"):
             if 'choices' in chunk:
                 delta = chunk['choices'][0].get('delta', {}).get('content', '')
                 reply += delta
+                truncated_reply = truncate_text(reply, 40)  # Adjust word limit as needed
                 with st.chat_message("assistant"):
-                    st.write(reply, unsafe_allow_html=True)
+                    st.write(truncated_reply, unsafe_allow_html=True)
             time.sleep(0.1)  # Adjust sleep to control update frequency
 
-        st.session_state.messages.append({"role": "assistant", "content": reply})
-
-    # Gemini Response Handling with Streaming
-    elif llm_vendor == "Gemini":
-        chat = gemini_model.start_chat()
-        text_response = []
-        responses = chat.send_message(prompt, stream=True)
-        for chunk in responses:
-            text_response.append(chunk.text)
-            with st.chat_message("assistant"):
-                st.write("".join(text_response), unsafe_allow_html=True)
-            time.sleep(0.1)  # Adjust sleep to control update frequency
-        reply = "".join(text_response)
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
     # Groq Response Handling with Streaming
@@ -166,8 +150,9 @@ if prompt := st.chat_input("Ask your question"):
             model=model_to_use
         )
         reply = chat_completion.choices[0].message.content[:200]  # Limit response to 200 characters
+        truncated_reply = truncate_text(reply, 40)  # Adjust word limit as needed
         with st.chat_message("assistant"):
-            st.write(reply, unsafe_allow_html=True)
+            st.write(truncated_reply, unsafe_allow_html=True)
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
     # Limit messages to buffer size after completing the flow
