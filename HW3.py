@@ -18,8 +18,8 @@ st.sidebar.header("Options")
 url1 = st.sidebar.text_input("URL 1")
 url2 = st.sidebar.text_input("URL 2")
 
-# Option to pick the LLM vendor (OpenAI, Gemini, Groq)
-llm_vendor = st.sidebar.selectbox("Select LLM Vendor", ["OpenAI", "Gemini", "Groq"])
+# Option to pick the LLM vendor (OpenAI, Gemini, Groq, OpenRouter)
+llm_vendor = st.sidebar.selectbox("Select LLM Vendor", ["OpenAI", "Gemini", "Groq", "OpenRouter"])
 
 # Option to pick the type of conversation memory
 memory_type = st.sidebar.selectbox("Select Conversation Memory Type", ["Buffer of 5 questions", "Conversation Summary", "Buffer of 5,000 tokens"])
@@ -39,6 +39,8 @@ elif llm_vendor == "Gemini":
     model_to_use = "gemini-1.5-flash"  # Always use gemini-1.5-flash
 elif llm_vendor == "Groq":
     model_to_use = "llama3-8b-8192"  # Always use llama3-8b-8192
+elif llm_vendor == "OpenRouter":
+    model_to_use = "mattshumer/reflection-70b:free"  # Example model for OpenRouter
 
 # Buffer size slider
 buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=2, step=1)
@@ -50,6 +52,8 @@ elif llm_vendor == "Gemini":
     genai.configure(api_key=st.secrets["gemini_api_key"])
 elif llm_vendor == "Groq":
     groq_client = Groq(api_key=st.secrets["grok_api_key"])
+elif llm_vendor == "OpenRouter":
+    openrouter_api_key = st.secrets["openrouter_api_key"]
 
 # A dictionary to store parsed URL content in session state
 if "parsed_urls" not in st.session_state:
@@ -161,6 +165,30 @@ if prompt := st.chat_input("Ask your question"):
             model=model_to_use
         )
         reply = chat_completion.choices[0].message.content  # Get the response content
+
+        with st.chat_message("assistant"):
+            st.write(reply)
+
+        st.session_state.messages.append({"role": "assistant", "content": reply})
+
+    # OpenRouter Response Handling
+    elif llm_vendor == "OpenRouter":
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {openrouter_api_key}",
+                "HTTP-Referer": f"{YOUR_SITE_URL}", # Optional, replace with your site URL
+                "X-Title": f"{YOUR_APP_NAME}", # Optional, replace with your app name
+            },
+            data=json.dumps({
+                "model": model_to_use,
+                "messages": [
+                    { "role": "user", "content": prompt }
+                ]
+            })
+        )
+        response_data = response.json()
+        reply = response_data["choices"][0]["message"]["content"]  # Get the response content
 
         with st.chat_message("assistant"):
             st.write(reply)
