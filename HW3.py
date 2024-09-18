@@ -1,8 +1,8 @@
 import streamlit as st
-from openai import OpenAI
 import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
+from openai import OpenAI
 import json
 
 st.title('My HW3 Question Answering Chatbox')
@@ -15,25 +15,24 @@ url_1 = st.sidebar.text_input("Enter the first URL:")
 url_2 = st.sidebar.text_input("Enter the second URL:")
 
 # Fetch and parse URLs
-if st.sidebar.button("Fetch URLs"):
-    def fetch_and_parse(url):
-        try:
-            response = requests.get(url)
-            soup = BeautifulSoup(response.content, "html.parser")
-            return soup.get_text()  # Store full text
-        except Exception as e:
-            return f"Error fetching URL: {e}"
+def fetch_and_parse(url):
+    try:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, "html.parser")
+        return soup.get_text()  # Store full text
+    except Exception as e:
+        return f"Error fetching URL: {e}"
 
+if st.sidebar.button("Fetch URLs"):
     if url_1:
         st.session_state['url_1_content'] = fetch_and_parse(url_1)
     if url_2:
         st.session_state['url_2_content'] = fetch_and_parse(url_2)
 
 # Display the content of the first URL
-if 'url_1_content' in st.session_state:
-    if st.sidebar.button("Print First URL Studied"):
-        st.write("**First URL Content:**")
-        st.write(st.session_state['url_1_content'][:500])  # Limiting output to 500 characters
+if 'url_1_content' in st.session_state and st.sidebar.button("Print First URL Studied"):
+    st.write("**First URL Content:**")
+    st.write(st.session_state['url_1_content'][:500])  # Limiting output to 500 characters
 
 # Initialize LLM clients
 if 'client' not in st.session_state:
@@ -44,7 +43,7 @@ if 'client' not in st.session_state:
     }
     st.session_state.clients = {
         "OpenAI": OpenAI(api_key=api_keys["OpenAI"]),
-        "Gemini": genai.Client(api_key=api_keys["Gemini"]),  # Using google-generativeai library
+        "Gemini": genai.Client(api_key=api_keys["Gemini"]),
         "OpenRouter": None  # Set up OpenRouter client later
     }
 
@@ -85,13 +84,12 @@ if prompt := st.chat_input("What is up?"):
     elif model_provider == "Gemini":
         try:
             client = st.session_state.clients["Gemini"]
-            response = client.create_completion(
-                model="gemini-model",  # Replace with actual model name
+            response = client.chat.completions.create(
+                model="gemini-model",
                 messages=st.session_state.messages,
                 stream=True
             )
 
-            response_text = ""
             for chunk in response:
                 if 'choices' in chunk and len(chunk['choices']) > 0:
                     message = chunk['choices'][0].get('message', {})
