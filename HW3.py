@@ -52,12 +52,12 @@ if model_provider == "OpenAI":
     client = st.session_state.client
 
 elif model_provider == "Gemini":
-    genai.configure(api_key=st.secrets["gemini_key"])
+    genai.configure(api_key=st.secrets["gemini_api_key"])
     model_to_use = "gemini-1.5-flash-latest"
 
 elif model_provider == "OpenRouter":
     model_to_use = "mattshumer/reflection-70b:free"  # Example model
-    api_key = st.secrets["openrouter_key"]
+    api_key = st.secrets["openrouter_api_key"]
 
 # Existing chatbox logic
 if 'messages' not in st.session_state:
