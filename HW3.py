@@ -49,7 +49,7 @@ if llm_vendor == "OpenAI":
 elif llm_vendor == "Gemini":
     genai.configure(api_key=st.secrets["gemini_api_key"])
 elif llm_vendor == "Groq":
-    groq_client = Groq(api_key=st.secrets["groq_api_key"])
+    groq_client = Groq(api_key=st.secrets["grok_api_key"])
 
 # A dictionary to store parsed URL content in session state
 if "parsed_urls" not in st.session_state:
