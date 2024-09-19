@@ -7,7 +7,6 @@ import re
 from urllib.parse import urlparse
 import os
 from groq import Groq
-from transformers import GPT2Tokenizer
 
 # Title and description
 st.title("📄 My Homework 3 Question Answering Chatbox")
@@ -26,7 +25,12 @@ llm_vendor = st.sidebar.selectbox("Select LLM Vendor", ["OpenAI", "Gemini", "Gro
 memory_type = st.sidebar.selectbox("Select Conversation Memory Type", ["Buffer of 5 questions", "Conversation Summary", "Buffer of 5,000 tokens"])
 
 # Determine the buffer size based on the selected memory type
-buffer_size = 5 if memory_type == "Buffer of 5 questions" else 5000
+if memory_type == "Buffer of 5 questions":
+    buffer_size = 5
+elif memory_type == "Buffer of 5,000 tokens":
+    buffer_size = 5000  
+else:
+    buffer_size = 10  
 
 # Model selection based on LLM vendor
 if llm_vendor == "OpenAI":
@@ -37,6 +41,9 @@ elif llm_vendor == "Groq":
     model_to_use = "llama3-8b-8192"  # Always use llama3-8b-8192
 elif llm_vendor == "OpenRouter":
     model_to_use = "mattshumer/reflection-70b:free"  # Example model for OpenRouter
+
+# Buffer size slider
+buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=2, step=1)
 
 # Set up LLM clients based on the vendor
 if llm_vendor == "OpenAI":
@@ -100,12 +107,6 @@ def is_question_related_to_url(prompt):
     keywords = ["content", "details", "info from", "link", "URL"]
     return any(keyword in prompt.lower() for keyword in keywords)
 
-# Function to estimate token count for OpenAI models
-def count_tokens(text, model='gpt-3.5-turbo'):
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    tokens = tokenizer.encode(text)
-    return len(tokens)
-
 # Function to call OpenRouter API
 def call_openrouter_api(api_key, document, instruction):
     try:
@@ -133,20 +134,10 @@ def call_openrouter_api(api_key, document, instruction):
 if prompt := st.chat_input("Ask your question"):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    if memory_type == "Buffer of 5 questions":
-        # Limit to the last buffer_size questions and responses
-        if len(st.session_state.messages) > buffer_size * 2:
-            st.session_state.messages = st.session_state.messages[-buffer_size * 2:]
-    
-    elif memory_type == "Buffer of 5,000 tokens":
-        # Limit to the last buffer_size tokens
-        total_tokens = sum(count_tokens(msg["content"]) for msg in st.session_state.messages)
-        while total_tokens > buffer_size:
-            if st.session_state.messages:
-                total_tokens -= count_tokens(st.session_state.messages.pop(0)["content"])
-            else:
-                break
-    
+    # Limit the buffer to the specified size
+    if len(st.session_state.messages) > buffer_size * 2:
+        st.session_state.messages = st.session_state.messages[-buffer_size * 2:]
+
     with st.chat_message("user"):
         st.markdown(prompt)
     
@@ -160,12 +151,18 @@ if prompt := st.chat_input("Ask your question"):
     
     # OpenAI Response Handling
     if llm_vendor == "OpenAI":
-        response = openai.ChatCompletion.create(
+        client = openai.OpenAI(api_key=st.secrets["openai_key"])  # Initialize OpenAI client with secret key
+        messages = [
+            {"role": "system", "content": 'You answer questions about web services.'},
+            {"role": "user", "content": prompt}  # Pass the user's prompt as the message content
+        ]
+        # Call the OpenAI API to get the response
+        response = client.chat.completions.create(
             model=model_to_use,
-            messages=combined_messages,
+            messages=messages,
             temperature=0  # Adjust temperature if needed
         )
-        reply = response.choices[0].message['content']
+        reply = response.choices[0].message.content  # Get the response content
 
         with st.chat_message("assistant"):
             st.write(reply)
@@ -185,10 +182,12 @@ if prompt := st.chat_input("Ask your question"):
     # Groq Response Handling
     elif llm_vendor == "Groq":
         chat_completion = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
             model=model_to_use
         )
-        reply = chat_completion.choices[0].message['content']
+        reply = chat_completion.choices[0].message.content  # Get the response content
 
         with st.chat_message("assistant"):
             st.write(reply)
@@ -207,13 +206,5 @@ if prompt := st.chat_input("Ask your question"):
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
     # Limit messages to buffer size after completing the flow
-    if memory_type == "Buffer of 5 questions":
-        if len(st.session_state.messages) > buffer_size * 2:
-            st.session_state.messages = st.session_state.messages[-buffer_size * 2:]
-    elif memory_type == "Buffer of 5,000 tokens":
-        total_tokens = sum(count_tokens(msg["content"]) for msg in st.session_state.messages)
-        while total_tokens > buffer_size:
-            if st.session_state.messages:
-                total_tokens -= count_tokens(st.session_state.messages.pop(0)["content"])
-            else:
-                break
+    if len(st.session_state.messages) > buffer_size * 2:
+        st.session_state.messages = st.session_state.messages[-buffer_size*2:]
