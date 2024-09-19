@@ -5,7 +5,6 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urlparse
-import os
 from groq import Groq
 
 # Title and description
@@ -25,7 +24,7 @@ llm_vendor = st.sidebar.selectbox("Select LLM Vendor", ["OpenAI", "Gemini", "Gro
 memory_type = st.sidebar.selectbox("Select Conversation Memory Type", ["Buffer of 5 questions", "Conversation Summary", "Buffer of 5,000 tokens"])
 
 # Static memory mode
-memory_mode = "URL Memory"  # or "Self Memory" or "Combined Memory" based on your logic
+memory_mode = "URL Memory"  # Change based on actual logic or condition
 
 # Display memory mode in the sidebar
 st.sidebar.write(f"Memory Mode: {memory_mode}")
@@ -155,117 +154,122 @@ if prompt := st.chat_input("Ask your question"):
         if combined_text:
             response_from_url = ""
             # Generate response using URL content if available
-            if llm_vendor == "OpenAI":
-                client = openai.OpenAI(api_key=st.secrets["openai_key"])  # Initialize OpenAI client with secret key
-                messages = [
-                    {"role": "system", "content": 'You answer questions based on URL content.'},
-                    {"role": "user", "content": f"{combined_text}\n\n{prompt}"}
-                ]
-                response = client.chat.completions.create(
-                    model=model_to_use,
-                    messages=messages,
-                    temperature=0  # Adjust temperature if needed
-                )
-                response_from_url = response.choices[0].message.content
+            try:
+                if llm_vendor == "OpenAI":
+                    response = openai.ChatCompletion.create(
+                        model=model_to_use,
+                        messages=[
+                            {"role": "system", "content": 'You answer questions based on URL content.'},
+                            {"role": "user", "content": f"{combined_text}\n\n{prompt}"}
+                        ],
+                        temperature=0  # Adjust temperature if needed
+                    )
+                    response_from_url = response.choices[0].message['content']
+                    
+                elif llm_vendor == "Gemini":
+                    model = genai.GenerativeModel(model_to_use)
+                    response = model.generate_content(f"{combined_text}\n\n{prompt}")
+                    response_from_url = response.text
+                    
+                elif llm_vendor == "Groq":
+                    chat_completion = groq_client.chat.completions.create(
+                        messages=[
+                            {"role": "user", "content": f"{combined_text}\n\n{prompt}"}
+                        ],
+                        model=model_to_use
+                    )
+                    response_from_url = chat_completion.choices[0].message['content']
+                    
+                elif llm_vendor == "OpenRouter":
+                    response_from_url = call_openrouter_api(openrouter_api_key, combined_text, prompt)
                 
-            elif llm_vendor == "Gemini":
-                model = genai.GenerativeModel(model_to_use)
-                response = model.generate_content(f"{combined_text}\n\n{prompt}")
-                response_from_url = response.text
-                
-            elif llm_vendor == "Groq":
-                chat_completion = groq_client.chat.completions.create(
-                    messages=[
-                        {"role": "user", "content": f"{combined_text}\n\n{prompt}"}
-                    ],
-                    model=model_to_use
-                )
-                response_from_url = chat_completion.choices[0].message.content
-                
-            elif llm_vendor == "OpenRouter":
-                response_from_url = call_openrouter_api(openrouter_api_key, combined_text, prompt)
-            
-            # Display and save URL-based response
-            with st.chat_message("assistant"):
-                st.write(response_from_url)
-            st.session_state.messages.append({"role": "assistant", "content": response_from_url})
+                # Display and save URL-based response
+                with st.chat_message("assistant"):
+                    st.write(response_from_url)
+                st.session_state.messages.append({"role": "assistant", "content": response_from_url})
 
+            except Exception as e:
+                st.error(f"Error generating response: {e}")
+                
     elif memory_mode == "Self Memory":
         # Prepare messages from memory for the general conversation
         combined_messages = st.session_state.messages + [{"role": "system", "content": "Use conversation history for context."}]
         
-        if llm_vendor == "OpenAI":
-            client = openai.OpenAI(api_key=st.secrets["openai_key"])  # Initialize OpenAI client with secret key
-            messages = [
-                {"role": "system", "content": 'You answer questions based on conversation history.'},
-                {"role": "user", "content": prompt}
-            ]
-            response = client.chat.completions.create(
-                model=model_to_use,
-                messages=messages,
-                temperature=0  # Adjust temperature if needed
-            )
-            response_from_memory = response.choices[0].message.content
+        try:
+            if llm_vendor == "OpenAI":
+                response = openai.ChatCompletion.create(
+                    model=model_to_use,
+                    messages=[
+                        {"role": "system", "content": 'You answer questions based on conversation history.'},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0  # Adjust temperature if needed
+                )
+                response_from_memory = response.choices[0].message['content']
+                
+            elif llm_vendor == "Gemini":
+                model = genai.GenerativeModel(model_to_use)
+                response = model.generate_content(f"{prompt} - context: {combined_messages}")
+                response_from_memory = response.text
+                
+            elif llm_vendor == "Groq":
+                chat_completion = groq_client.chat.completions.create(
+                    messages=[
+                        {"role": "user", "content": f"{prompt}"}
+                    ],
+                    model=model_to_use
+                )
+                response_from_memory = chat_completion.choices[0].message['content']
+                
+            elif llm_vendor == "OpenRouter":
+                response_from_memory = call_openrouter_api(openrouter_api_key, "", prompt)
             
-        elif llm_vendor == "Gemini":
-            model = genai.GenerativeModel(model_to_use)
-            response = model.generate_content(f"{prompt} - context: {combined_messages}")
-            response_from_memory = response.text
-            
-        elif llm_vendor == "Groq":
-            chat_completion = groq_client.chat.completions.create(
-                messages=[
-                    {"role": "user", "content": f"{prompt}"}
-                ],
-                model=model_to_use
-            )
-            response_from_memory = chat_completion.choices[0].message.content
-            
-        elif llm_vendor == "OpenRouter":
-            response_from_memory = call_openrouter_api(openrouter_api_key, "", prompt)
-        
-        # Display and save self-memory-based response
-        with st.chat_message("assistant"):
-            st.write(response_from_memory)
-        st.session_state.messages.append({"role": "assistant", "content": response_from_memory})
+            # Display and save self-memory-based response
+            with st.chat_message("assistant"):
+                st.write(response_from_memory)
+            st.session_state.messages.append({"role": "assistant", "content": response_from_memory})
+
+        except Exception as e:
+            st.error(f"Error generating response: {e}")
 
     elif memory_mode == "Combined Memory":
         # Combine URL and self memory for response generation
         url_texts = list(st.session_state["parsed_urls"].values())
         combined_url_text = "\n".join(url_texts)
         
-        if llm_vendor == "OpenAI":
-            client = openai.OpenAI(api_key=st.secrets["openai_key"])  # Initialize OpenAI client with secret key
-            messages = [
-                {"role": "system", "content": 'Use both URL content and conversation history for responses.'},
-                {"role": "user", "content": f"{combined_url_text}\n\n{prompt}"}
-            ]
-            response = client.chat.completions.create(
-                model=model_to_use,
-                messages=messages,
-                temperature=0  # Adjust temperature if needed
-            )
-            response_from_combined = response.choices[0].message.content
+        try:
+            if llm_vendor == "OpenAI":
+                response = openai.ChatCompletion.create(
+                    model=model_to_use,
+                    messages=[
+                        {"role": "system", "content": 'Use both URL content and conversation history for responses.'},
+                        {"role": "user", "content": f"{combined_url_text}\n\n{prompt}"}
+                    ],
+                    temperature=0  # Adjust temperature if needed
+                )
+                response_from_combined = response.choices[0].message['content']
+                
+            elif llm_vendor == "Gemini":
+                model = genai.GenerativeModel(model_to_use)
+                response = model.generate_content(f"{combined_url_text}\n\n{prompt}")
+                response_from_combined = response.text
+                
+            elif llm_vendor == "Groq":
+                chat_completion = groq_client.chat.completions.create(
+                    messages=[
+                        {"role": "user", "content": f"{combined_url_text}\n\n{prompt}"}
+                    ],
+                    model=model_to_use
+                )
+                response_from_combined = chat_completion.choices[0].message['content']
+                
+            elif llm_vendor == "OpenRouter":
+                response_from_combined = call_openrouter_api(openrouter_api_key, combined_url_text, prompt)
             
-        elif llm_vendor == "Gemini":
-            model = genai.GenerativeModel(model_to_use)
-            response = model.generate_content(f"{combined_url_text}\n\n{prompt}")
-            response_from_combined = response.text
-            
-        elif llm_vendor == "Groq":
-            chat_completion = groq_client.chat.completions.create(
-                messages=[
-                    {"role": "user", "content": f"{combined_url_text}\n\n{prompt}"}
-                ],
-                model=model_to_use
-            )
-            response_from_combined = chat_completion.choices[0].message.content
-            
-        elif llm_vendor == "OpenRouter":
-            response_from_combined = call_openrouter_api(openrouter_api_key, combined_url_text, prompt)
-        
-        # Display and save combined-memory-based response
-        with st.chat_message("assistant"):
-            st.write(response_from_combined)
-        st.session_state.messages.append({"role": "assistant", "content": response_from_combined})
+            # Display and save combined-memory-based response
+            with st.chat_message("assistant"):
+                st.write(response_from_combined)
+            st.session_state.messages.append({"role": "assistant", "content": response_from_combined})
 
+        except Exception as e:
+            st.error(f"Error generating response: {e}")
