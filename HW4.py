@@ -5,6 +5,11 @@ from chromadb.utils import embedding_functions
 import os
 import PyPDF2
 
+__import__('pysqlite3')
+import sys
+
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 st.title('My LAB4 Question Answering chatbox')
 
 openAImodel = st.sidebar.selectbox("Which model?", ("mini", "regular"))
