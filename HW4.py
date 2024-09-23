@@ -2,6 +2,8 @@ import streamlit as st
 from openai import OpenAI
 import chromadb
 from chromadb.utils import embedding_functions
+import os
+import PyPDF2
 
 st.title('My LAB4 Question Answering chatbox')
 
@@ -36,12 +38,30 @@ def create_chroma_collection():
         embedding_function=openai_ef
     )
     
+    # Process and add PDF files
+    pdf_dir = "path_to_your_pdf_files"  # Replace with actual path
+    for filename in os.listdir(pdf_dir):
+        if filename.endswith(".pdf"):
+            file_path = os.path.join(pdf_dir, filename)
+            with open(file_path, 'rb') as pdf_file:
+                pdf_reader = PyPDF2.PdfReader(pdf_file)
+                text = ""
+                for page in pdf_reader.pages:
+                    text += page.extract_text()
+            
+            # Add document to collection
+            collection.add(
+                documents=[text],
+                metadatas=[{"filename": filename}],
+                ids=[filename]
+            )
+    
     return collection
 
-# Create the ChromaDB collection
-lab4_collection = create_chroma_collection()
+# Create the ChromaDB collection if not already in session state
+if 'Lab4_vectorDB' not in st.session_state:
+    st.session_state.Lab4_vectorDB = create_chroma_collection()
 
-# Rest of your existing code...
 # Display all messages
 for msg in st.session_state.messages:
     chat_msg = st.chat_message(msg["role"])
@@ -58,10 +78,26 @@ if prompt := st.chat_input("What is up?"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # Query the vector database
+    results = st.session_state.Lab4_vectorDB.query(
+        query_texts=[prompt],
+        n_results=3
+    )
+
+    # Add relevant document information to the context
+    context = "Relevant documents:\n"
+    for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
+        context += f"- {metadata['filename']}: {doc[:100]}...\n"
+
+    # Prepare messages for OpenAI, including the context
+    messages = st.session_state.messages + [
+        {"role": "system", "content": f"Use this context to inform your response: {context}"}
+    ]
+
     client = st.session_state.client
     stream = client.chat.completions.create(
         model=model_to_use,
-        messages=st.session_state.messages,
+        messages=messages,
         stream=True
     )
 
@@ -69,7 +105,7 @@ if prompt := st.chat_input("What is up?"):
         response = st.write_stream(stream)
 
     # Ensure response is less than 150 words
-    response = response[:150]
+    response = ' '.join(response.split()[:150])
     st.session_state.messages.append({"role": "assistant", "content": response})
 
     # Automatically ask for more information
