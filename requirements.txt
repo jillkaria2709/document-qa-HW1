@@ -6,6 +6,5 @@ PyPDF2
 protobuf == 3.20
 pymupdf
 beautifulsoup4
-google-generativeai
 Groq
 transformers
