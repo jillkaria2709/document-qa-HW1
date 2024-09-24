@@ -74,7 +74,7 @@ def generate_response(messages):
         response = client.chat.completions.create(
             model="gpt-4",
             messages=messages,
-            max_tokens=500
+            max_tokens=200
         )
         return response.choices[0].message.content
     except Exception as e:
@@ -115,8 +115,8 @@ if prompt := st.chat_input("What would you like to know about the course?"):
     
     # Check total tokens and truncate if necessary
     total_tokens = num_tokens_from_string(system_message, "cl100k_base") + num_tokens_from_string(user_message, "cl100k_base")
-    if total_tokens > 7500:  # Leave some room for the response
-        context_tokens = 7500 - num_tokens_from_string(system_message, "cl100k_base") - num_tokens_from_string(f"Question: {prompt}", "cl100k_base")
+    if total_tokens > 5000:  # Leave some room for the response
+        context_tokens = 5000 - num_tokens_from_string(system_message, "cl100k_base") - num_tokens_from_string(f"Question: {prompt}", "cl100k_base")
         context = context[:context_tokens]
         user_message = f"Context: {context}\n\nQuestion: {prompt}"
 
