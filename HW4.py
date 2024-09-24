@@ -1,89 +1,146 @@
 import streamlit as st
-from openai import OpenAI
-import os
-from PyPDF2 import PdfReader
 import chromadb
+import os
+import openai
+import fitz  
 
-# SQLite adjustments for chromadb
-__import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+# Initialize OpenAI API key
+openai.api_key = st.secrets["openai_key"]
 
-# Initialize the ChromaDB Persistent Client
-openai_client = chromadb.PersistentClient()
+# Function to generate OpenAI embeddings
+def get_embedding(text, model="text-embedding-ada-002"):
+    response = openai.embeddings.create(input=text, model=model)
+    return response.data[0].embedding
 
-# Initialize session state for OpenAI client
-if 'openai_client' not in st.session_state:
-    api_key = st.secrets("openai_key")
-    st.session_state.openai_client = OpenAI(api_key=api_key)
+# Function to create ChromaDB collection
+def create_lab4_collection():
+    if "Lab4_vectorDB" not in st.session_state:
+        client = chromadb.Client()
+        collection = client.create_collection(name="Lab4Collection")
 
-# Function to extract text from PDFs in the "pdfs" folder
-def extract_text_from_pdfs(folder_path="pdfs"):
-    pdf_texts = {}
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".pdf"):
-            pdf_path = os.path.join(folder_path, filename)
-            reader = PdfReader(pdf_path)
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text()
-            pdf_texts[filename] = text
-    return pdf_texts
+        pdf_folder = "/mount/src/document-qa-1/pdf"
+        if not os.path.exists(pdf_folder):
+            st.error(f"PDF folder '{pdf_folder}' does not exist.")
+            return
+        
+        pdf_files = [f for f in os.listdir(pdf_folder) if f.endswith(".pdf")]
+        if not pdf_files or len(pdf_files) != 7:
+            st.error("Please ensure there are exactly 7 PDF files in the directory.")
+            return
 
-# Function to add PDFs to a collection
-def add_to_collection(collection, text, filename):
-    openai_client = st.session_state.openai_client
-    response = openai_client.embeddings.create(
-        input=text,
-        model="text-embedding-3-small"
-    )
-    embedding = response.data[0].embedding
+        documents = []
+        metadatas = []
+        ids = [file for file in pdf_files]
 
-    collection.add(
-        documents=[text],
-        ids=[filename],
-        embeddings=[embedding]
-    )
+        for file in pdf_files:
+            file_path = os.path.join(pdf_folder, file)
+            with fitz.open(file_path) as doc:
+                text = ""
+                for page in doc:
+                    text += page.get_text()
 
-# Predefined folder for PDF files
-pdf_folder = "pdfs"
+            if not text:
+                st.warning(f"No text extracted from '{file}'")
+                continue
+            
+            try:
+                embedding = get_embedding(text)
+                documents.append(embedding)
+                metadatas.append({"filename": file, "content": text})  
+            except Exception as e:
+                st.error(f"Error generating embedding for {file}: {str(e)}")
+                continue
+        
+        try:
+            collection.add(ids=ids, embeddings=documents, metadatas=metadatas)
+        except Exception as e:
+            st.error(f"Error adding documents to ChromaDB: {str(e)}")
+            return
+        
+        st.session_state.Lab4_vectorDB = collection
+        st.success("ChromaDB collection 'Lab4Collection' created and stored in session state.")
 
-# Extract PDFs and add to collection
-if os.path.exists(pdf_folder):
-    st.write(f"Loading PDFs from: {pdf_folder}")
+# Function to get LLM response with context indication
+def get_llm_response(query, context):
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": f"Here is some relevant information from the course syllabi:\n\n{context}\n\nNow, answer this question: {query}"}
+    ]
     
-    # Extract text from PDFs
-    pdf_texts = extract_text_from_pdfs(pdf_folder)
-    
-    # Create a collection
-    collection = openai_client.create_collection("pdf_collection")
-    
-    # Add each PDF text to the collection
-    for filename, text in pdf_texts.items():
-        add_to_collection(collection, text, filename)
-        st.write(f"Added {filename} to the collection")
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",  # Use the specified model
+            messages=messages
+        )
+        return response.choices[0].message.content  # Accessing the response correctly
+    except Exception as e:
+        st.error(f"Error getting response from the LLM: {str(e)}")
+        return "Sorry, I couldn't generate a response."
 
-# Sidebar for topic selection
-topic = st.sidebar.selectbox("Topic", ("Text Mining", "GenAI"))
+# Function to search the vector database
+def search_lab4_collection(query_text):
+    if "Lab4_vectorDB" in st.session_state:
+        collection = st.session_state.Lab4_vectorDB
+        
+        # Generate embedding for query text
+        try:
+            query_embedding = get_embedding(query_text)
+        except Exception as e:
+            st.error(f"Error generating embedding for the query: {str(e)}")
+            return None, None
+        
+        # Query the ChromaDB using query_embeddings
+        try:
+            results = collection.query(
+                query_embeddings=[query_embedding],
+                n_results=3
+            )
+            print(f"Raw results: {results}")  # Log the raw results for debugging
+        except Exception as e:
+            st.error(f"Error querying ChromaDB: {str(e)}")
+            return None, None
+        
+        # Accessing metadatas properly
+        metadatas = results['metadatas'][0]  # Access the first list in 'metadatas'
+        
+        # Gather context from the results
+        context = "\n".join([result.get('content', '') for result in metadatas if isinstance(result, dict)])
+        
+        # If context is available, generate LLM response
+        if context:
+            llm_response = get_llm_response(query_text, context)
+            return metadatas, llm_response  # Return both metadatas and the response
+        else:
+            st.warning("No relevant context found for the query.")
+            return None, None
+    else:
+        st.warning("Lab4 vector database not found. Please create it first.")
+        return None, None
 
-# Query the collection with the topic
-openai_client = st.session_state.openai_client
-response = openai_client.embeddings.create(
-    input=topic,
-    model="text-embedding-3-small"
-)
+# Streamlit interface
+st.title("Lab4 Vector Database")
 
-query_embedding = response.data[0].embedding
+# Create ChromaDB collection if not already in session state
+if st.button("Create Lab4 Collection"):
+    create_lab4_collection()
 
-# Retrieve relevant results from the collection
-results = collection.query(
-    query_embeddings=[query_embedding],
-    n_results=3
-)
+# Chat interface
+query = st.text_input("Enter your question:")
+if st.button("Ask"):
+    if query:
+        metadatas, llm_response = search_lab4_collection(query)
+        if metadatas:
+            # Display the top results if any
+            st.write(f"Search results for '{query}':")
+            for i, result in enumerate(metadatas):
+                filename = result.get('filename', 'Unknown file')
+                st.write(f"{i + 1}. {filename}")
+        else:
+            st.warning("No relevant documents found.")
 
-# Display relevant documents
-st.write(f"Relevant documents for the topic '{topic}':")
-for i in range(len(results['documents'][0])):
-    doc = results['documents'][0][i]
-    doc_id = results['ids'][0][i]
-    st.write(f"The following file/syllabus might be helpful: {doc_id}")
+        # Display the chatbot response
+        if llm_response:
+            st.write("Chatbot response:")
+            st.write(llm_response)
+    else:
+        st.warning("Please enter a question.")
