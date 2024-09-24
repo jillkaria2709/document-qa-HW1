@@ -8,3 +8,4 @@ tiktoken
 pymupdf
 beautifulsoup4
 Groq
+transformers
