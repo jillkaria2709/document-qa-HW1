@@ -6,3 +6,5 @@ pysqlite3-binary
 protobuf==3.20
 tiktoken
 pymupdf
+beautifulsoup4
+Groq
