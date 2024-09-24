@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 from openai import OpenAI
-import google.generativeai as genai
+#import google.generativeai as genai
 import requests
 from groq import Groq  # Importing Groq API
 import time
@@ -17,7 +17,7 @@ st.write(
 openai_client = OpenAI(api_key=st.secrets["openai_key"])
 
 # Gemini API configuration
-genai.configure(api_key=st.secrets["gemini_api_key"])
+#genai.configure(api_key=st.secrets["gemini_api_key"])
 
 # Groq API configuration
 grok_client = Groq(api_key=st.secrets["grok_api_key"])
@@ -122,10 +122,10 @@ if document:
         )
         st.write_stream(stream)
 
-    elif model_provider == "Gemini":
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
-        gemini_response = model.generate_content(f"Here's a document: {document} \n\n---\n\n {instruction}")
-        st.write(f"**Response from Gemini:**\n{gemini_response.text}")
+    #elif model_provider == "Gemini":
+        #model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        #gemini_response = model.generate_content(f"Here's a document: {document} \n\n---\n\n {instruction}")
+        #st.write(f"**Response from Gemini:**\n{gemini_response.text}")
 
     elif model_provider == "Groq":
         success = False
