@@ -9,21 +9,11 @@ sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import chromadb
 
-chroma_client = chromadb.PersistentClient()
+openai_client = chromadb.PersistentClient()
 
-collection = chroma_client.get_or_create_collection(name="My_Collection")
+if 'openai_client' not in st.session_state:
+    api_key = st.secrets("openai_key")
+    st.session_state.openai_client = OpenAI(api_key=api_key)
 
-collection.upsert(
-    documents=[
-        "This is a document about pineapples",
-        "This is a document about oranges"
-    ],
-    ids=["id1","id2"]
-)
-
-results = collection.query(
-    query_texts=["This is a query document about florida"],
-    n_results= 2
-)
-
-print(results)
+def add_to_collection(collection,text,filename):
+    
