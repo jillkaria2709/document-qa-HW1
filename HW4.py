@@ -16,7 +16,7 @@ client = OpenAI(api_key=st.secrets["openai_key"])
 def create_chromadb_collection(pdf_files):
     if 'Lab4_vectorDB' not in st.session_state:
         # Initialize ChromaDB client with persistent storage
-        client = chromadb.PersistentClient(path="./chroma_db")
+        client = chromadb.PersistentClient()
         st.session_state.Lab4_vectorDB = client.get_or_create_collection(name="Lab4Collection")
         
         # Set up OpenAI embedding function
