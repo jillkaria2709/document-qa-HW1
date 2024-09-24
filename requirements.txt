@@ -1,10 +1,11 @@
 protobuf==3.20.0
 streamlit
 openai
+chromadb==0.3.29
+PyPDF2
+pysqlite3-binary
 pymupdf
 beautifulsoup4
 google-generativeai
 Groq
 transformers
-chromadb
-pysqlite3-binary

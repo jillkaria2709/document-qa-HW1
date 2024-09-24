@@ -1,3 +1,6 @@
+import os
+os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
+
 __import__('pysqlite3')
 import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
@@ -6,7 +9,6 @@ import streamlit as st
 from openai import OpenAI
 import chromadb
 from chromadb.utils import embedding_functions
-import os
 import PyPDF2
 
 st.title('My LAB4 Question Answering chatbox')
@@ -28,7 +30,7 @@ if 'messages' not in st.session_state:
 
 def create_chroma_collection():
     # Initialize ChromaDB client
-    chroma_client = chromadb.Client()
+    chroma_client = chromadb.PersistentClient(path="/tmp/chromadb")
     
     # Create OpenAI embedding function
     openai_ef = embedding_functions.OpenAIEmbeddingFunction(
