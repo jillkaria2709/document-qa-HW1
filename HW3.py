@@ -1,6 +1,6 @@
 import streamlit as st
 import openai
-import google.generativeai as genai
+#import google.generativeai as genai
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -48,8 +48,8 @@ buffer_size = st.sidebar.slider("Buffer Size", min_value=1, max_value=10, value=
 # Set up LLM clients based on the vendor
 if llm_vendor == "OpenAI":
     openai.api_key = st.secrets["openai_key"]
-elif llm_vendor == "Gemini":
-    genai.configure(api_key=st.secrets["gemini_api_key"])
+#elif llm_vendor == "Gemini":
+    #genai.configure(api_key=st.secrets["gemini_api_key"])
 elif llm_vendor == "Groq":
     groq_client = Groq(api_key=st.secrets["grok_api_key"])
 elif llm_vendor == "OpenRouter":
@@ -171,13 +171,13 @@ if prompt := st.chat_input("Ask your question"):
         st.session_state.messages.append({"role": "assistant", "content": reply})
         
     # Gemini Response Handling
-    elif llm_vendor == "Gemini":
-        model = genai.GenerativeModel(model_to_use)
-        response = model.generate_content("\n".join([msg["content"] for msg in combined_messages]))
-        reply = response.text
-        with st.chat_message("assistant"):
-            st.write(reply)
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+    #elif llm_vendor == "Gemini":
+        #model = genai.GenerativeModel(model_to_use)
+        #response = model.generate_content("\n".join([msg["content"] for msg in combined_messages]))
+        #reply = response.text
+        #with st.chat_message("assistant"):
+            #st.write(reply)
+        #st.session_state.messages.append({"role": "assistant", "content": reply})
     
     # Groq Response Handling
     elif llm_vendor == "Groq":
