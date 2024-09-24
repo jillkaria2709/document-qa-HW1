@@ -2,14 +2,13 @@ import streamlit as st
 from openai import OpenAI
 import os
 from PyPDF2 import PdfReader
-import chromadb
 
-# SQLite adjustments for chromadb
 __import__('pysqlite3')
 import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
-# Initialize the ChromaDB Persistent Client
+import chromadb
+
 openai_client = chromadb.PersistentClient()
 
 # Initialize session state for OpenAI client
