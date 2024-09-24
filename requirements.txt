@@ -1,7 +1,7 @@
 streamlit
 openai
 chromadb
-pysqlite3-binary
 PyPDF2
-protobuf == 3.20
+pysqlite3-binary
+protobuf==3.20
 tiktoken
