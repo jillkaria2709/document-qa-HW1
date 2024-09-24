@@ -9,4 +9,3 @@ pymupdf
 beautifulsoup4
 Groq
 transformers
-google-generativeai --pre
