@@ -37,7 +37,7 @@ def create_chromadb_collection(pdf_files):
             except Exception as e:
                 st.error(f"Error processing {file.name}: {e}")
         
-        st.success("ChromaDB collection has been created successfully!")
+        st.success("ChromaDB has been created!")
 
 # Function to query the vector database and get relevant context
 def get_relevant_context(query):
@@ -62,7 +62,7 @@ def generate_response(messages):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            max_tokens=200
+            max_tokens=150
         )
         return response.choices[0].message.content
     except Exception as e:
