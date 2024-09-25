@@ -6,7 +6,6 @@ sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 import chromadb
 from chromadb.utils import embedding_functions
 import PyPDF2
-import tiktoken
 import os
 
 client = OpenAI(api_key=st.secrets["openai_key"])
@@ -16,7 +15,7 @@ def create_chromadb_collection(pdf_files):
     if 'HW4_vectorDB' not in st.session_state:
         # Initialize ChromaDB client with persistent storage
         client = chromadb.PersistentClient()
-        st.session_state.HW4_vectorDB = client.get_or_create_collection(name="4Cohwllection")
+        st.session_state.HW4_vectorDB = client.get_or_create_collection(name="HW4_collection")
         
         # Set up OpenAI embedding function
         openai_embedder = embedding_functions.OpenAIEmbeddingFunction(api_key=st.secrets["openai_key"], model_name="text-embedding-3-small")
@@ -41,14 +40,8 @@ def create_chromadb_collection(pdf_files):
         
         st.success("ChromaDB collection has been created successfully!")
 
-# Function to count tokens
-def num_tokens_from_string(string: str, encoding_name: str) -> int:
-    encoding = tiktoken.get_encoding(encoding_name)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
-
 # Function to query the vector database and get relevant context
-def get_relevant_context(query, max_tokens=6000):
+def get_relevant_context(query):
     if 'HW4_vectorDB' in st.session_state:
         results = st.session_state.HW4_vectorDB.query(
             query_texts=[query],
@@ -59,10 +52,7 @@ def get_relevant_context(query, max_tokens=6000):
         context = ""
         for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
             new_context = f"From document '{metadata['filename']}':\n{doc}\n\n"
-            if num_tokens_from_string(context + new_context, "cl100k_base") <= max_tokens:
-                context += new_context
-            else:
-                break
+            context += new_context
         
         return context
     return ""
@@ -111,13 +101,6 @@ if prompt := st.chat_input("What would you like to know about the course?"):
     # Prepare messages for the LLM
     system_message = "You are a helpful assistant that answers questions about a course based on the provided context. If the answer is not in the context, say you don't have that information."
     user_message = f"Context: {context}\n\nQuestion: {prompt}"
-    
-    # Check total tokens and truncate if necessary
-    total_tokens = num_tokens_from_string(system_message, "cl100k_base") + num_tokens_from_string(user_message, "cl100k_base")
-    if total_tokens > 5000:  # Leave some room for the response
-        context_tokens = 5000 - num_tokens_from_string(system_message, "cl100k_base") - num_tokens_from_string(f"Question: {prompt}", "cl100k_base")
-        context = context[:context_tokens]
-        user_message = f"Context: {context}\n\nQuestion: {prompt}"
 
     messages = [
         {"role": "system", "content": system_message},
