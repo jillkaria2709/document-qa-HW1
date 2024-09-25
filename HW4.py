@@ -10,12 +10,11 @@ import os
 
 client = OpenAI(api_key=st.secrets["openai_key"])
 
-# Function to create ChromaDB collection and embed PDF documents
 def create_chromadb_collection(pdf_files):
-    if 'HW4_vectorDB' not in st.session_state:
+    if 'HW4' not in st.session_state:
         # Initialize ChromaDB client with persistent storage
         client = chromadb.PersistentClient()
-        st.session_state.HW4_vectorDB = client.get_or_create_collection(name="HW4_collection")
+        st.session_state.HW4 = client.get_or_create_collection(name="HW4_collection")
         
         # Set up OpenAI embedding function
         openai_embedder = embedding_functions.OpenAIEmbeddingFunction(api_key=st.secrets["openai_key"], model_name="text-embedding-3-small")
@@ -30,7 +29,7 @@ def create_chromadb_collection(pdf_files):
                     pdf_text += page.extract_text()
                 
                 # Add document to ChromaDB collection with embeddings
-                st.session_state.HW4_vectorDB.add(
+                st.session_state.HW4.add(
                     documents=[pdf_text],
                     metadatas=[{"filename": file.name}],
                     ids=[file.name]
@@ -42,8 +41,8 @@ def create_chromadb_collection(pdf_files):
 
 # Function to query the vector database and get relevant context
 def get_relevant_context(query):
-    if 'HW4_vectorDB' in st.session_state:
-        results = st.session_state.HW4_vectorDB.query(
+    if 'HW4' in st.session_state:
+        results = st.session_state.HW4.query(
             query_texts=[query],
             n_results=5,
             include=["documents", "metadatas"]
@@ -70,13 +69,13 @@ def generate_response(messages):
         return f"Error: {str(e)}"
 
 # Streamlit application
-st.title("Course Information Chatbot")
+st.title("Understanding your courses!")
 
 # Load PDF files
 pdf_files = st.file_uploader("Upload your PDF files", accept_multiple_files=True, type=["pdf"])
 
 # Create ChromaDB collection and embed documents if not already created
-if st.button("Create ChromaDB Collection") and pdf_files:
+if st.button("Create ChromaDB") and pdf_files:
     create_chromadb_collection(pdf_files)
 
 # Initialize chat history
@@ -89,13 +88,12 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # React to user input
-if prompt := st.chat_input("What would you like to know about the course?"):
+if prompt := st.chat_input("What questions do you have?"):
     # Display user message in chat message container
     st.chat_message("user").markdown(prompt)
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # Get relevant context from the vector database
     context = get_relevant_context(prompt)
 
     # Prepare messages for the LLM
