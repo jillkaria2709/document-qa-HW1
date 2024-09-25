@@ -61,7 +61,7 @@ def get_relevant_context(query):
 def generate_response(messages):
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=messages,
             max_tokens=200
         )
