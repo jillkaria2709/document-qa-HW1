@@ -5,30 +5,33 @@ import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 import chromadb
 from chromadb.utils import embedding_functions
-from PyPDF2 import PdfReader
+import PyPDF2
 import tiktoken
 import os
 
 client = OpenAI(api_key=st.secrets["openai_key"])
 
+# Function to create ChromaDB collection and embed PDF documents
 def create_chromadb_collection(pdf_files):
-    if 'HW4' not in st.session_state:
+    if 'HW4_vectorDB' not in st.session_state:
         # Initialize ChromaDB client with persistent storage
         client = chromadb.PersistentClient()
-        st.session_state.HW4 = client.get_or_create_collection(name="HW4 Collection")
+        st.session_state.HW4_vectorDB = client.get_or_create_collection(name="4Cohwllection")
         
+        # Set up OpenAI embedding function
         openai_embedder = embedding_functions.OpenAIEmbeddingFunction(api_key=st.secrets["openai_key"], model_name="text-embedding-3-small")
         
+        # Loop through provided PDF files, convert to text, and add to the vector database
         for file in pdf_files:
             try:
                 # Read PDF file and extract text
                 pdf_text = ""
-                pdf_reader = PdfReader.PdfReader(file)
+                pdf_reader = PyPDF2.PdfReader(file)
                 for page in pdf_reader.pages:
                     pdf_text += page.extract_text()
                 
                 # Add document to ChromaDB collection with embeddings
-                st.session_state.HW4.add(
+                st.session_state.HW4_vectorDB.add(
                     documents=[pdf_text],
                     metadatas=[{"filename": file.name}],
                     ids=[file.name]
@@ -36,7 +39,7 @@ def create_chromadb_collection(pdf_files):
             except Exception as e:
                 st.error(f"Error processing {file.name}: {e}")
         
-        st.success("Finished creating chromaDB collection")
+        st.success("ChromaDB collection has been created successfully!")
 
 # Function to count tokens
 def num_tokens_from_string(string: str, encoding_name: str) -> int:
@@ -46,8 +49,8 @@ def num_tokens_from_string(string: str, encoding_name: str) -> int:
 
 # Function to query the vector database and get relevant context
 def get_relevant_context(query, max_tokens=6000):
-    if 'HW4' in st.session_state:
-        results = st.session_state.HW4.query(
+    if 'HW4_vectorDB' in st.session_state:
+        results = st.session_state.HW4_vectorDB.query(
             query_texts=[query],
             n_results=5,
             include=["documents", "metadatas"]
@@ -68,7 +71,7 @@ def get_relevant_context(query, max_tokens=6000):
 def generate_response(messages):
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4",
             messages=messages,
             max_tokens=200
         )
@@ -77,13 +80,13 @@ def generate_response(messages):
         return f"Error: {str(e)}"
 
 # Streamlit application
-st.title("Chatbot to understand courses")
+st.title("Course Information Chatbot")
 
 # Load PDF files
 pdf_files = st.file_uploader("Upload your PDF files", accept_multiple_files=True, type=["pdf"])
 
 # Create ChromaDB collection and embed documents if not already created
-if st.button("Create ChromaDB") and pdf_files:
+if st.button("Create ChromaDB Collection") and pdf_files:
     create_chromadb_collection(pdf_files)
 
 # Initialize chat history
