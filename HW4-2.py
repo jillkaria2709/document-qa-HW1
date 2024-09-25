@@ -16,7 +16,7 @@ client = OpenAI(api_key=st.secrets["openai_key"])
 def create_chromadb_collection(html_files):
     if 'HW4_vectorDB' not in st.session_state:
         # Initialize ChromaDB client with persistent storage
-        client = chromadb.PersistentClient()
+        client = chromadb.PersistentClient(Settings())
         st.session_state.HW4_vectorDB = client.get_or_create_collection(name="HTMLCollection")
 
         # Set up OpenAI embedding function
