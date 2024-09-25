@@ -1,5 +1,8 @@
 import streamlit as st
 from openai import OpenAI
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 import chromadb
 from chromadb.utils import embedding_functions
 import os
