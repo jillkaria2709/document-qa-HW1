@@ -99,14 +99,13 @@ def generate_response_with_context(query):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            max_tokens=150
         )
         return response.choices[0].message.content
     except Exception as e:
         return f"Error: {str(e)}"
 
 # Streamlit application
-st.title("Understanding your courses or clubs!")
+st.title("Understanding your courses")
 
 # Load PDF files
 pdf_files = st.file_uploader("Upload your PDF files", accept_multiple_files=True, type=["pdf"])
