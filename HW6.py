@@ -32,49 +32,42 @@ def main():
     st.title("News Reporting Bot")
     st.write("This bot helps you find and rank news articles.")
 
-    # Sidebar options
-    st.sidebar.title("Options")
-    uploaded_file = st.sidebar.file_uploader("Upload your CSV file", type=["csv"])
+    # File uploader for CSV
+    uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
     if uploaded_file:
-        # Load and display data
+        # Load the news data
         news_df = load_data(uploaded_file)
         st.write("CSV file loaded successfully!")
         st.write(news_df.head())  # Display the first few rows of the data to check
-        
-        # Rest of your code to select options
-        option = st.sidebar.selectbox(
-            "Choose an option:",
-            ("Find most interesting news", "Find news about a topic")
-        )
 
-        if option == "Find most interesting news":
-            query = st.text_input("Enter a query for 'interesting' news (e.g., 'legal', 'technology'):")
+        # Input prompt
+        prompt = st.text_input("Enter your prompt (e.g., 'find the most interesting news' or 'find news about topic X'):")
 
-            if st.button("Find Most Interesting News"):
-                if query:
-                    top_news = rank_news(news_df, query)
-                    st.write(f"Top news articles for '{query}':")
+        # Handle user input
+        if st.button("Submit"):
+            if prompt:
+                if "interesting" in prompt.lower():
+                    # Handle "most interesting news" query
+                    st.write(f"Finding the most interesting news for query: '{prompt}'")
+                    top_news = rank_news(news_df, prompt)
                     for idx, row in top_news.iterrows():
                         st.write(f"**Title:** {row['Document']}")  # Use 'Document' for the title/content
                         st.write(f"**URL:** [Link]({row['URL']})")
                         st.write("---")
                 else:
-                    st.error("Please enter a query.")
-
-        elif option == "Find news about a topic":
-            topic = st.text_input("Enter a topic (e.g., 'legal', 'economy'):")
-
-            if st.button("Find News on Topic"):
-                if topic:
-                    topic_news = find_news_by_topic(news_df, topic)
-                    st.write(f"News articles about '{topic}':")
-                    for idx, row in topic_news.iterrows():
-                        st.write(f"**Title:** {row['Document']}")  # Use 'Document' for the title/content
-                        st.write(f"**URL:** [Link]({row['URL']})")
-                        st.write("---")
-                else:
-                    st.error("Please enter a topic.")
+                    # Handle news about a specific topic
+                    topic_news = find_news_by_topic(news_df, prompt)
+                    if not topic_news.empty:
+                        st.write(f"News articles about '{prompt}':")
+                        for idx, row in topic_news.iterrows():
+                            st.write(f"**Title:** {row['Document']}")  # Use 'Document' for the title/content
+                            st.write(f"**URL:** [Link]({row['URL']})")
+                            st.write("---")
+                    else:
+                        st.write(f"No articles found about '{prompt}'")
+            else:
+                st.error("Please enter a prompt.")
 
 if __name__ == "__main__":
     main()
