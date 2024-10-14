@@ -35,19 +35,21 @@ def main():
     # Sidebar options
     st.sidebar.title("Options")
     uploaded_file = st.sidebar.file_uploader("Upload your CSV file", type=["csv"])
-    
-    if uploaded_file:
-        news_df = load_data(uploaded_file)
 
+    if uploaded_file:
+        # Load and display data
+        news_df = load_data(uploaded_file)
+        st.write("CSV file loaded successfully!")
+        st.write(news_df.head())  # Display the first few rows of the data to check
+        
+        # Rest of your code to select options
         option = st.sidebar.selectbox(
             "Choose an option:",
             ("Find most interesting news", "Find news about a topic")
         )
 
-        # Find most interesting news
         if option == "Find most interesting news":
             query = st.text_input("Enter a query for 'interesting' news (e.g., 'legal', 'technology'):")
-
             if st.button("Find Most Interesting News"):
                 if query:
                     top_news = rank_news(news_df, query)
@@ -59,10 +61,8 @@ def main():
                 else:
                     st.error("Please enter a query.")
 
-        # Find news about a topic
         elif option == "Find news about a topic":
             topic = st.text_input("Enter a topic (e.g., 'legal', 'economy'):")
-
             if st.button("Find News on Topic"):
                 if topic:
                     topic_news = find_news_by_topic(news_df, topic)
