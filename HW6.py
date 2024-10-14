@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 # Load CSV file
 @st.cache
 def load_data():
-    return pd.read_csv("news_stories.csv")  # Make sure the CSV file is uploaded to Streamlit Cloud
+    return pd.read_csv(r"/workspaces/document-qa-HW1/Example_news_info_for_testing.csv")  # Make sure the CSV file is uploaded to Streamlit Cloud
 
 # Define function to rank news by 'interestingness'
 def rank_news(news_df, query, top_n=5):
