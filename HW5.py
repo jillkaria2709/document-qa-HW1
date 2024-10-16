@@ -1,143 +1,213 @@
 import streamlit as st
-from openai import OpenAI
+import openai
 __import__('pysqlite3')
 import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+import os
 import chromadb
-from chromadb.utils import embedding_functions
-import PyPDF2
+from bs4 import BeautifulSoup
+from openai import OpenAI
+import json
+import time
 
-# Set OpenAI client with the API key
-client = OpenAI(api_key=st.secrets["openai_key"])
-
-# Initialize the ChromaDB client with persistent storage
-def initialize_chromadb():
-    if 'HW4' not in st.session_state:
-        client = chromadb.PersistentClient(path="chromadb_storage")  # Ensure persistence
-        st.session_state.HW4 = client.get_or_create_collection(name="HW4_collection")
-
-# Function to create ChromaDB collection from PDFs
-def create_chromadb_collection(pdf_files):
-    initialize_chromadb()  # Initialize if not already
-
-    # Set up OpenAI embedding function
-    openai_embedder = embedding_functions.OpenAIEmbeddingFunction(
-        api_key=st.secrets["openai_key"], 
-        model_name="text-embedding-ada-002"  # Use a supported embedding model
-    )
-    
-    # Manually track added files to avoid duplicates
-    if 'added_files' not in st.session_state:
-        st.session_state.added_files = []
-
-    # Loop through provided PDF files, convert to text, and add to the vector database
-    for file in pdf_files:
-        try:
-            # Check if the document is already added to avoid duplicates
-            if file.name in st.session_state.added_files:
-                st.warning(f"{file.name} is already in the collection.")
-                continue
-
-            # Read PDF file and extract text
-            pdf_text = ""
-            pdf_reader = PyPDF2.PdfReader(file)
-            for page in pdf_reader.pages:
-                pdf_text += page.extract_text()
-
-            # Add document to ChromaDB collection with embeddings
-            st.session_state.HW4.add(
-                documents=[pdf_text],
-                metadatas=[{"filename": file.name}],
-                ids=[file.name]
-            )
-            
-            # Track added file to avoid duplicates
-            st.session_state.added_files.append(file.name)
-            st.success(f"Added {file.name} to the ChromaDB collection.")
-        except Exception as e:
-            st.error(f"Error processing {file.name}: {e}")
-
-# Function to return relevant course or club information from ChromaDB
-def get_relevant_info(query, collection_name="HW4_collection"):
-    if 'HW4' in st.session_state:
-        # Perform the query in the ChromaDB collection
-        results = st.session_state.HW4.query(
-            query_texts=[query],
-            n_results=5,
-            include=["documents", "metadatas"]
-        )
-        
-        context = ""
-        for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
-            new_context = f"From document '{metadata['filename']}':\n{doc}\n\n"
-            context += new_context
-        
-        # Save context to session state for continuity
-        if 'context' not in st.session_state:
-            st.session_state.context = ""
-        
-        # Append new context to the session state for future queries
-        st.session_state.context += context
-        
-        return context
-    return ""
-
-# Function to generate response using OpenAI, with relevant context included
-def generate_response_with_context(query):
+# Function to verify OpenAI API key
+def verify_openai_key(api_key):
     try:
-        # Load the accumulated context from previous queries
-        context = st.session_state.context if 'context' in st.session_state else ""
-
-        system_message = "You are a helpful assistant that answers questions about a course or club based on the provided context. If the answer is not in the context, say you don't have that information."
-        user_message = f"Context: {context}\n\nQuestion: {query}"
-
-        messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_message}
-        ]
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-        )
-        return response.choices[0].message.content
+        client = OpenAI(api_key=api_key)
+        client.models.list()
+        return client, True, "API key is valid"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return None, False, str(e)
 
-# Streamlit application
-st.title("Understanding your courses")
+# Vector DB functions
+def add_to_collection(collection, text, filename):
+    openai_client = OpenAI(api_key=st.secrets['openai_key'])
+    response = openai_client.embeddings.create(
+        input=text,
+        model="text-embedding-3-small"
+    )
+    embedding = response.data[0].embedding
+    collection.add(
+        documents=[text],
+        ids=[filename],
+        embeddings=[embedding]
+    )
+    return collection
 
-# Load PDF files
-pdf_files = st.file_uploader("Upload your PDF files", accept_multiple_files=True, type=["pdf"])
+# OpenAI function calling setup
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_vectordb",
+            "description": "Search the vector database for relevant information about iSchool student organizations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The query to search the vector database."
+                    }
+                },
+                "required": ["query"]
+            },
+        },
+    }
+]
 
-# Create ChromaDB collection and embed documents if not already created
-if st.button("Create ChromaDB") and pdf_files:
-    create_chromadb_collection(pdf_files)
+# Function for OpenAI chat completion requests
+def chat_completion_request(message, tools, tool_choice=None):
+    try:
+        messages = []
+        messages.append(message)
+        client = OpenAI(api_key=openai_api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+        )
+        return response
+    except Exception as e:
+        st.error(f"Unable to generate ChatCompletion response. Error: {e}")
+        return e
 
-# Initialize chat history if not already done
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+def setup_vectordb():
+    db_path = "HW4_VectorDB"
+    
+    if not os.path.exists(db_path):
+        st.info("Setting up vector DB for the first time...")
+        client = chromadb.PersistentClient(path=db_path)
+        collection = client.get_or_create_collection(
+            name="HW4Collection",
+            metadata={"hnsw:space": "cosine", "hnsw:M": 32}
+        )
+        
+        su_orgs_path = os.path.join(os.getcwd(), "HWs/su_orgs/")
+        html_files = [f for f in os.listdir(su_orgs_path) if f.endswith('.html')]
+        
+        for html_file in html_files:
+            file_path = os.path.join(su_orgs_path, html_file)
+            with open(file_path, 'r', encoding='utf-8') as file:
+                soup = BeautifulSoup(file, 'html.parser')
+                text = soup.get_text(separator=' ', strip=True)
+                collection = add_to_collection(collection, text, html_file)
+        
+        st.success(f"VectorDB setup complete with {len(html_files)} HTML files!")
+    else:
+        st.info("VectorDB already exists. Loading from disk...")
+        client = chromadb.PersistentClient(path=db_path)
+        st.session_state.HW4_vectorDB = client.get_collection(name="HW4Collection")
 
-# Display chat messages from history on app rerun
+def search_vectordb(query, k=3):
+    if 'HW4_vectorDB' in st.session_state:
+        collection = st.session_state.HW4_vectorDB
+        openai_client = OpenAI(api_key=st.secrets['openai_key'])
+        response = openai_client.embeddings.create(
+            input=query,
+            model="text-embedding-3-small"
+        )
+        query_embedding = response.data[0].embedding
+        
+        # Show spinner while retrieving results
+        with st.spinner('Retrieving information from the database...'):
+            results = collection.query(
+                query_embeddings=[query_embedding],
+                include=['documents', 'distances', 'metadatas'],
+                n_results=k
+            )
+        return results
+    else:
+        st.error("VectorDB not set up. Please set up the VectorDB first.")
+        return None
+
+# Streamlit App
+st.title("iSchool Student Organizations Chatbot")
+
+# API key verification
+openai_api_key = st.secrets["openai_key"]
+client, is_valid, message = verify_openai_key(openai_api_key)
+
+if is_valid:
+    st.sidebar.success(f"OpenAI API key is valid!", icon="✅")
+else:
+    st.sidebar.error(f"Invalid OpenAI API key: {message}", icon="❌")
+    st.stop()
+
+# Set up VectorDB
+setup_vectordb()
+
+# Initialize session state
+if 'messages' not in st.session_state:
+    st.session_state['messages'] = []
+
+# Display chat history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# React to user input (here, it's 'query' instead of 'prompt')
-if query := st.chat_input("What course or club info do you need?"):
-    # Display user message in chat message container
-    st.chat_message("user").markdown(query)
+# Chat input
+if prompt := st.chat_input("What would you like to know about iSchool student organizations?"):
     # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": query})
-
-    # Get relevant information using the query
-    relevant_info = get_relevant_info(query)
-
-    # Generate response with context
-    response = generate_response_with_context(query)
-
-    # Display assistant response in chat message container
+    msg = {"role": "user", "content": prompt}
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    st.session_state.messages.append(msg)
+    
+    # Generate response using OpenAI
     with st.chat_message("assistant"):
-        st.markdown(response)
+        response = chat_completion_request(msg, tools=tools)
+        
+        # Check if a tool was used or not
+        tool_call = response.choices[0].message.tool_calls
+        
+        if tool_call:
+            # If a tool is called, execute the tool and search the vector DB
+            tool_call_data = tool_call[0]
+            arguments = json.loads(tool_call_data.function.arguments)
+            query = arguments.get('query')
+            
+            # Call search_vectordb only if there is a tool call
+            with st.spinner('Retrieving relevant information from the database...'):
+                time.sleep(1) 
+                document = search_vectordb(query)['documents'][0]
+            
+            msgs = []
+            msgs.append({"role": "system", "content": f"Relevant information: \n {document}"})
+            msgs.append(msg)
+            
+            # Stream the final response from OpenAI
+            openai_client = OpenAI(api_key=st.secrets['openai_key'])
+            message_placeholder = st.empty()
+            full_response = ""
+            stream = openai_client.chat.completions.create(
+                        model='gpt-4o',
+                        messages=msgs,
+                        stream=True
+                    )
+            if stream:
+                for chunk in stream:
+                    if chunk.choices[0].delta.content is not None:
+                        full_response += chunk.choices[0].delta.content
+                        message_placeholder.markdown(full_response + "▌")
+                message_placeholder.markdown(full_response)
+        
+        else:
+            # If no tool is used, just call the LLM directly
+            openai_client = OpenAI(api_key=st.secrets['openai_key'])
+            message_placeholder = st.empty()
+            full_response = ""
+            stream = openai_client.chat.completions.create(
+                        model='gpt-4o',
+                        messages=[msg],
+                        stream=True
+                    )
+            if stream:
+                for chunk in stream:
+                    if chunk.choices[0].delta.content is not None:
+                        full_response += chunk.choices[0].delta.content
+                        message_placeholder.markdown(full_response + "▌")
+                message_placeholder.markdown(full_response)
+        
     # Add assistant response to chat history
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
